@@ -1,0 +1,365 @@
+import React, { useEffect, useState } from 'react'
+import { skillLabel } from '../utils/matching.js'
+
+function DoneGameModal({ court, playerName, defaultShuttlePrice, onConfirm, onClose }) {
+  const [winner, setWinner] = useState('A')
+  const [shuttles, setShuttles] = useState(1)
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h3>Finish {court.name}</h3>
+        <div className="muted" style={{ marginBottom: 12 }}>
+          {court.teamA.map(playerName).join(' & ')} vs {court.teamB.map(playerName).join(' & ')}
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div className="muted" style={{ marginBottom: 6 }}>Winning team</div>
+          <div className="row">
+            <button
+              className={winner === 'A' ? 'btn gold' : 'btn secondary'}
+              onClick={() => setWinner('A')}
+            >
+              Team A
+            </button>
+            <button
+              className={winner === 'B' ? 'btn gold' : 'btn secondary'}
+              onClick={() => setWinner('B')}
+            >
+              Team B
+            </button>
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <div className="muted" style={{ marginBottom: 6 }}>Shuttles used this game</div>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={shuttles}
+            onChange={(e) => setShuttles(Number(e.target.value))}
+            style={{ width: 90 }}
+          />
+          <span className="muted" style={{ marginLeft: 8 }}>
+            × ₱{defaultShuttlePrice} ÷ 4 players
+          </span>
+        </div>
+
+        <div className="row" style={{ justifyContent: 'flex-end' }}>
+          <button className="btn secondary" onClick={onClose}>Cancel</button>
+          <button className="btn" onClick={() => onConfirm(winner, shuttles)}>Confirm & Clear Court</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function QueueCourtsPanel({
+  players,
+  queue,
+  courts,
+  pendingMatch,
+  shuttlePrice,
+  onAutoMatch,
+  onClearPending,
+  onReorderQueue,
+  onReorderQueueTo,
+  onRemoveFromQueue,
+  onSwapPendingPlayer,
+  onAssignPendingToCourt,
+  onAssignPlayerToCourt,
+  onRemovePlayerFromCourt,
+  onStartGame,
+  onDoneGame,
+  onSwapCourtPlayer
+}) {
+  const [doneModalCourt, setDoneModalCourt] = useState(null)
+  const [tick, setTick] = useState(Date.now())
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setTick(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  const byId = Object.fromEntries(players.map((p) => [p.id, p]))
+  const playerName = (id) => byId[id]?.name || '—'
+  const queuedPlayers = queue
+    .map((entry) => ({ ...byId[entry.id], queuedAt: entry.queuedAt }))
+    .filter(Boolean)
+  const emptyCourts = courts.filter((c) => c.status === 'empty')
+
+  const formatWaitTime = (queuedAt) => {
+    if (!queuedAt) return '—'
+    const delta = Date.now() - queuedAt
+    const totalSeconds = Math.max(0, Math.floor(delta / 1000))
+    const minutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+    return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`
+  }
+
+  const exportImage = async () => {
+    // export removed from courts - handled by leaderboard only
+  }
+
+  return (
+    <>
+      <div className="panel">
+        <div className="row" style={{ justifyContent: 'space-between' }}>
+          <h2>Queue ({queuedPlayers.length} waiting)</h2>
+        </div>
+        <div className="panel">
+        <h2>Courts</h2>
+        <div className="courts-grid">
+          {courts.map((c) => (
+            <div
+              key={c.id}
+              className={`court-card ${c.status !== 'empty' ? 'playing' : ''}`}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault()
+                const data = e.dataTransfer.getData('text/plain')
+                if (!data) return
+                try {
+                  const payload = JSON.parse(data)
+                  if (payload.type === 'queue') {
+                    onAssignPlayerToCourt && onAssignPlayerToCourt(c.id, payload.id)
+                  } else if (payload.type === 'court') {
+                    if (payload.courtId !== c.id) {
+                      // move between courts
+                      onRemovePlayerFromCourt && onRemovePlayerFromCourt(payload.courtId, payload.id)
+                      onAssignPlayerToCourt && onAssignPlayerToCourt(c.id, payload.id)
+                    }
+                  }
+                } catch (err) {
+                  /* ignore */
+                }
+              }}
+            >
+              <h3>
+                {c.name}
+                <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>
+                  {c.status === 'empty' ? 'Empty' : c.status === 'assigned' ? 'Ready' : 'In progress'}
+                </span>
+              </h3>
+
+              {/* always render court surface; show placeholders for empty slots */}
+              <div className="court-surface">
+                <div className="court-players team-a">
+                  {Array.from({ length: 2 }).map((_, idx) => {
+                    const id = c.teamA[idx]
+                    return id ? (
+                      <div
+                        key={id}
+                        className="court-player"
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'court', id, courtId: c.id }))
+                          e.dataTransfer.effectAllowed = 'move'
+                        }}
+                      >
+                        <div className="court-avatar">{playerName(id).charAt(0).toUpperCase()}</div>
+                      </div>
+                    ) : (
+                      <div key={`a-${idx}`} className="court-player empty">
+                        <div className="court-avatar empty">+</div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* <div className="court-center">VS</div> */}
+
+                <div className="court-players team-b">
+                  {Array.from({ length: 2 }).map((_, idx) => {
+                    const id = c.teamB[idx]
+                    return id ? (
+                      <div
+                        key={id}
+                        className="court-player"
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'court', id, courtId: c.id }))
+                          e.dataTransfer.effectAllowed = 'move'
+                        }}
+                      >
+                        <div className="court-avatar">{playerName(id).charAt(0).toUpperCase()}</div>
+                      </div>
+                    ) : (
+                      <div key={`b-${idx}`} className="court-player empty">
+                        <div className="court-avatar empty">+</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="row" style={{ marginTop: 10 }}>
+                {c.status === 'assigned' && (
+                  <button className="btn small" onClick={() => onStartGame(c.id)}>▶ Start Game</button>
+                )}
+                {c.status === 'playing' && (
+                  <button className="btn gold small" onClick={() => setDoneModalCourt(c)}>✓ Done Game</button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+        {!pendingMatch && (
+          <div className="row" style={{ marginBottom: 12 }}>
+            <button className="btn gold" onClick={onAutoMatch} disabled={queuedPlayers.length < 4}>
+              ⚡ Auto-assign next match
+            </button>
+            <span className="muted">Takes the 4 longest-waiting players, balanced by skill</span>
+          </div>
+        )}
+
+        {pendingMatch && (
+          <div className="court-card playing" style={{ marginBottom: 16 }}>
+            <h3>Proposed Match <span className="muted" style={{ fontWeight: 400 }}>tap a name to swap</span></h3>
+            <div className="team-line">
+              <span>
+                {pendingMatch.teamA.map((id) => (
+                  <span
+                    key={id}
+                    className="player-chip"
+                    style={{ marginRight: 6, cursor: 'pointer' }}
+                    onClick={() => onSwapPendingPlayer('A', id)}
+                  >
+                    {playerName(id)}
+                  </span>
+                ))}
+              </span>
+            </div>
+            <div className="vs">VS</div>
+            <div className="team-line">
+              <span>
+                {pendingMatch.teamB.map((id) => (
+                  <span
+                    key={id}
+                    className="player-chip"
+                    style={{ marginRight: 6, cursor: 'pointer' }}
+                    onClick={() => onSwapPendingPlayer('B', id)}
+                  >
+                    {playerName(id)}
+                  </span>
+                ))}
+              </span>
+            </div>
+            <div className="row" style={{ marginTop: 12 }}>
+              <select
+                onChange={(e) => {
+                  if (e.target.value) onAssignPendingToCourt(e.target.value)
+                }}
+                defaultValue=""
+                disabled={emptyCourts.length === 0}
+              >
+                <option value="" disabled>
+                  {emptyCourts.length === 0 ? 'No empty court' : 'Assign to court...'}
+                </option>
+                {emptyCourts.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <button className="btn secondary" onClick={onClearPending}>Cancel match</button>
+            </div>
+          </div>
+        )}
+
+        {queuedPlayers.length === 0 ? (
+          <div className="empty-state">Queue is empty — add players from the Players tab.</div>
+        ) : (
+          <div
+            className="queue-grid"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault()
+              const data = e.dataTransfer.getData('text/plain')
+              if (!data) return
+              try {
+                const payload = JSON.parse(data)
+                if (payload.type === 'court') {
+                  // dropped from a court -> remove from court and append to queue
+                  onRemovePlayerFromCourt && onRemovePlayerFromCourt(payload.courtId, payload.id)
+                }
+                // if from queue with drag reorder, treat as append
+              } catch (err) {}
+            }}
+          >
+            {queuedPlayers.map((p, i) => (
+              <div
+                className="leader-card queue-card"
+                key={p.id}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'queue', id: p.id, index: i }))
+                  e.dataTransfer.effectAllowed = 'move'
+                }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  const data = e.dataTransfer.getData('text/plain')
+                  if (!data) return
+                  try {
+                    const payload = JSON.parse(data)
+                    if (payload.type === 'queue') {
+                      onReorderQueueTo && onReorderQueueTo(payload.id, i)
+                    } else if (payload.type === 'court') {
+                      // move from court to this position in queue
+                      onRemovePlayerFromCourt && onRemovePlayerFromCourt(payload.courtId, payload.id)
+                      setTimeout(() => onReorderQueueTo && onReorderQueueTo(payload.id, i), 50)
+                    }
+                  } catch (err) {}
+                }}
+              >
+                <div className="leader-summary">
+                  <div className="leader-avatar">{p.name.charAt(0).toUpperCase()}</div>
+                  <div className="leader-info">
+                    <div className="leader-name">{p.name}</div>
+                    <div className="leader-meta">
+                      <span>{skillLabel(p.skillLevel)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card-top-right">
+                  <button className="card-close" onClick={() => onRemoveFromQueue(p.id)}>×</button>
+                </div>
+
+                <div className="leader-stats">
+                  <div className="leader-stat">
+                    <span className="label">Wait</span>
+                    <span className="value">{formatWaitTime(p.queuedAt)}</span>
+                  </div>
+                  <div className="leader-stat">
+                    <span className="label">Games</span>
+                    <span className="value">{p.gamesPlayed || 0}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      
+
+      
+
+      {doneModalCourt && (
+        <DoneGameModal
+          court={doneModalCourt}
+          playerName={playerName}
+          defaultShuttlePrice={shuttlePrice}
+          onClose={() => setDoneModalCourt(null)}
+          onConfirm={(winner, shuttles) => {
+            onDoneGame(doneModalCourt.id, winner, shuttles)
+            setDoneModalCourt(null)
+          }}
+        />
+      )}
+    </>
+  )
+}
