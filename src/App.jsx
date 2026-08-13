@@ -5,6 +5,8 @@ import QueueCourtsPanel from './components/QueueCourtsPanel.jsx'
 import LeaderboardPanel from './components/LeaderboardPanel.jsx'
 import { autoMatch } from './utils/matching.js'
 import { fetchSession, listenToSession, saveSession } from './firebase.js'
+import settingsIcon from './assets/settings.svg'
+
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 
@@ -394,7 +396,13 @@ export default function App() {
             className={`tab ${tab === t ? 'active' : ''}`}
             onClick={() => setTab(t)}
           >
-            {t === 'setup' ? 'Session' : t === 'queue' ? 'Queue & Courts' : t[0].toUpperCase() + t.slice(1)}
+           {t === 'setup' ? (
+  <img src={settingsIcon} alt="Settings" className="tab-icon" />
+) : t === 'queue' ? (
+  'Queue & Courts'
+) : (
+  t[0].toUpperCase() + t.slice(1)
+)}
           </button>
         ))}
       </div>
