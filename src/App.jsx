@@ -6,6 +6,7 @@ import LeaderboardPanel from './components/LeaderboardPanel.jsx'
 import { autoMatch } from './utils/matching.js'
 import { fetchSession, listenToSession, saveSession } from './firebase.js'
 import settingsIcon from './assets/settings.svg'
+import logo from './assets/logo.png'
 
 
 const uid = () => Math.random().toString(36).slice(2, 10)
@@ -383,9 +384,12 @@ export default function App() {
   return (
     <div className="app-shell">
       <div className="topbar">
-        <div>
-          <h1>STP Badminton Queue</h1>
-          <div className="sub">Skill-based matching · live courts · payment tracking</div>
+        <div className="logo">
+          <img src={logo} alt="STP Badminton Queue" className="logo-icon" />
+          <div className="center">
+            <h1>Badminton Queue</h1>
+            <div className="sub">Skill-based matching · live courts · payment tracking</div>
+          </div>
         </div>
       </div>
 
@@ -467,6 +471,9 @@ export default function App() {
           />
         )}
       </div>
+      <footer>
+        <span>© 2026 Aem Manzano · STP Badminton</span>
+      </footer>
     </div>
   )
 }

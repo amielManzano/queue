@@ -716,6 +716,32 @@ tbody tr:hover td { background: rgba(0,0,0,0.02); }
   object-fit: contain;
 }
 
+.logo {
+  display:flex;
+}
+
+.logo-icon {
+  width: 130px;
+  height: 80px;
+  object-fit: contain;
+
+}
+
+.center {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  justify-content: center;
+  margin-left: 10px
+}
+
+footer {
+  text-align: center;
+  padding: 20px 0;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
 /* ── Mobile fixes ──────────────────────────────────────────────
    .leader-card and .player-card were laid out with flex/grid rules
    that assume enough horizontal room for avatar + name + stats side
@@ -728,6 +754,29 @@ tbody tr:hover td { background: rgba(0,0,0,0.02); }
   .content {
     padding: 16px;
   }
+
+  .logo-icon {
+  width: 100px;
+  height: 70px;
+  object-fit: contain;
+
+}
+
+  .topbar h1 {
+  font-size: 18px;
+  margin: 0;
+  color: white;
+}
+
+.topbar .sub {
+  font-size: 8px;
+  opacity: 0.85;
+  text-transform: none;
+  font-family: 'Inter', sans-serif;
+  letter-spacing: normal;
+  color: white;
+}
+
 
   /* ── Leaderboard cards ── */
 
