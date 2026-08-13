@@ -3,13 +3,13 @@
   --court: #0b0b0b; /* primary dark */
   --court-dark: #050505; /* darker shade */
   --line: #ffffff; /* light text on dark */
-  --ink: #0b0b0b; /* primary text on light panels */
-  --panel: #ffffff; /* panel background stays white */
-  --bg: #0b0b0b; /* app background (dark) */
+  --ink: #0b1b2c; /* primary text on light panels */
+  --panel: #ffffff; /* panel background */
+  --bg: #f4f6f8; /* app background (light) */
   --shuttle: #ffb703; /* gold accent */
   --shuttle-dark: #e6a400; /* gold hover */
   --danger: #d64545;
-  --muted: #9aa0a6;
+  --muted: #6b7280;
   --radius: 14px;
   font-family: 'Inter', system-ui, sans-serif;
 }
@@ -37,19 +37,19 @@ h1, h2, h3, .display {
 }
 
 .topbar {
-  background: linear-gradient(90deg, rgba(11,11,11,1), rgba(8,8,8,1));
-  color: var(--line);
+  background: transparent;
+  color: var(--ink);
   padding: 18px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 2px solid rgba(255,183,3,0.06);
-  box-shadow: 0 8px 30px rgba(2,2,2,0.5);
+  border-bottom: 1px solid rgba(15,23,42,0.06);
 }
 
 .topbar h1 {
   font-size: 22px;
   margin: 0;
+  color: white;
 }
 
 .topbar .sub {
@@ -58,6 +58,7 @@ h1, h2, h3, .display {
   text-transform: none;
   font-family: 'Inter', sans-serif;
   letter-spacing: normal;
+  color: white;
 }
 
 .tabs {
@@ -74,13 +75,13 @@ h1, h2, h3, .display {
   padding: 10px 16px;
   font-weight: 700;
   font-size: 13px;
-  background: linear-gradient(180deg,var(--shuttle),var(--shuttle-dark));
+  background: var(--shuttle);
   color: var(--court-dark);
-  box-shadow: 0 8px 18px rgba(229,164,0,0.08);
-  transition: transform 140ms ease, box-shadow 140ms ease;
+  box-shadow: 0 6px 16px rgba(229,164,0,0.06);
+  transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
 }
 
-.btn:hover { transform: translateY(-3px); box-shadow: 0 18px 36px rgba(229,164,0,0.12); }
+.btn:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(229,164,0,0.10); }
 
 .tab.active {
   background: var(--shuttle);
@@ -97,9 +98,9 @@ h1, h2, h3, .display {
 
 .panel {
   background: var(--panel);
-  border-radius: var(--radius);
+  border-radius: 12px;
   padding: 20px;
-  box-shadow: 0 8px 28px rgba(12,12,12,0.06);
+  box-shadow: 0 8px 18px rgba(15,23,42,0.06);
   margin-bottom: 18px;
 }
 
@@ -147,8 +148,8 @@ input:focus, select:focus {
 .tab.active {
   background: var(--shuttle);
   color: var(--court-dark);
-  transform: translateY(-2px);
-  box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.12);
 }
 .btn:hover { background: var(--shuttle-dark); }
 .btn.secondary { background: #e7efe9; color: var(--court-dark); }
@@ -211,34 +212,34 @@ tbody tr:hover td { background: rgba(0,0,0,0.02); }
 
 .court-card.playing {
   border-style: solid;
-  border-color: var(--court);
-  background: linear-gradient(180deg, #ffffff, #f3faf6);
+  border-color: var(--shuttle-dark);
+  background: linear-gradient(180deg, #fffef6, #fff6e0);
 }
 
 /* Badminton court surface styling */
 .court-surface {
   width: 100%;
-  height: 140px;
+  height: 150px;
   border-radius: 10px;
-  /* higher-contrast gold gradient for visibility */
-  background: linear-gradient(180deg, #fff4d9 0%, #ffd26a 100%);
+  /* stronger, high-contrast gold/orange surface for visibility */
+  background: #ff9d00;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 18px;
-  box-shadow: inset 0 0 0 1px rgba(179,116,0,0.04);
-  border: 1px solid rgba(179,116,0,0.08);
+  padding: 0 18px;
+  box-shadow: 0 6px 18px rgba(255,167,0,0.06), inset 0 0 0 1px rgba(179,116,0,0.12);
+  border: 1px solid rgba(179,116,0,0.18);
 }
 
 .court-surface:before {
   content: '';
   position: absolute;
   left: 50%;
-  top: 10%;
-  bottom: 10%;
-  width: 3px;
-  background: rgba(179,116,0,0.9);
+  top: 8%;
+  bottom: 8%;
+  width: 4px;
+  background: white;
   transform: translateX(-50%);
 }
 
@@ -248,19 +249,42 @@ tbody tr:hover td { background: rgba(0,0,0,0.02); }
   left: 6%;
   right: 6%;
   top: 50%;
-  height: 3px;
-  background: rgba(179,116,0,0.6);
+  height: 4px;
+  background: white;
   transform: translateY(-50%);
 }
 
 .court-players {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 25px;
   z-index: 2;
 }
 
 .court-player { cursor: grab; }
+
+/* ensure the inner row fills the width so we can align left/right per team */
+.court-player > div {
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+/* team A: left-aligned name+avatar */
+.court-players.team-a .court-player > div { justify-content: flex-start; }
+
+/* team B: right-aligned name+avatar */
+.court-players.team-b .court-player > div { justify-content: flex-end; }
+
+.court-player-name {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ink);
+  max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .court-avatar {
   width: 44px;
@@ -271,9 +295,10 @@ tbody tr:hover td { background: rgba(0,0,0,0.02); }
   justify-content: center;
   font-weight: 800;
   color: #111;
-  background: linear-gradient(180deg, var(--shuttle), var(--shuttle-dark));
+  background: linear-gradient(180deg, #fffef6, #fff6e0)#e6a400;
   box-shadow: 0 8px 20px rgba(8,12,16,0.12);
   border: 2px solid rgba(0,0,0,0.04);
+  cursor: pointer;
 }
 
 .court-center { color: white; font-weight: 1000; z-index: 2; font-size: 30px; }
@@ -283,9 +308,18 @@ tbody tr:hover td { background: rgba(0,0,0,0.02); }
   background: rgba(255,255,255,0.98);
   color: #b36d00;
   border: 2px dashed rgba(179,116,0,0.45);
+  width: 44px;
+  height: 44px;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
-.court-player.empty { opacity: 0.95 }
+.court-player.empty { opacity: 0.95; display: flex; align-items: center; }
+
+/* ensure empty slot boxes align the same as filled rows */
+.court-players.team-a .court-player.empty { justify-content: flex-start; }
+.court-players.team-b .court-player.empty { justify-content: flex-end; }
 
 .court-card h3 {
   margin: 0 0 8px 0;
@@ -297,7 +331,7 @@ tbody tr:hover td { background: rgba(0,0,0,0.02); }
 
 .team-line {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
   padding: 6px 0;
   font-size: 13px;
@@ -331,6 +365,7 @@ tbody tr:hover td { background: rgba(0,0,0,0.02); }
   gap: 12px;
   min-height: auto;
   position: relative;
+  overflow: hidden;
 }
 
 .queue-card .leader-summary {

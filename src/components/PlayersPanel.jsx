@@ -8,6 +8,7 @@ export default function PlayersPanel({ players, games, courtFee, onAddPlayer, on
   const [editingId, setEditingId] = useState(null)
   const [editName, setEditName] = useState('')
   const [editSkill, setEditSkill] = useState(3)
+  const [search, setSearch] = useState('')
 
   const submit = () => {
     if (!name.trim()) return
@@ -39,15 +40,28 @@ export default function PlayersPanel({ players, games, courtFee, onAddPlayer, on
         <button className="btn" onClick={submit}>+ Add Player</button>
       </div>
 
+      <div className="row" style={{ marginBottom: 12 }}>
+        <input
+          placeholder="Search players"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ width: 300 }}
+        />
+      </div>
+
       {players.length === 0 && <div className="empty-state">No players yet. Add your club members above.</div>}
 
       <div className="player-grid">
-        {playersWithStats.map((p) => (
+        {playersWithStats
+          .filter((p) => p.name.toLowerCase().includes(search.trim().toLowerCase()))
+          .map((p) => (
           <div key={p.id} className="player-card">
            
 
             <div className="leader-summary">
-              <div className="leader-avatar">{p.name.charAt(0).toUpperCase()}</div>
+              <div className="leader-avatar" title={p.name}>
+                <div className="avatar-initials">{p.name.split(' ').map((w) => w[0]).slice(0,2).join('').toUpperCase()}</div>
+              </div>
               <div className="leader-info">
                 {editingId === p.id ? (
                   <input value={editName} onChange={(e) => setEditName(e.target.value)} />

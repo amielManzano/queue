@@ -74,6 +74,10 @@ export default function QueueCourtsPanel({
   onDoneGame,
   onSwapCourtPlayer
 }) {
+  const [assignStrategy, setAssignStrategy] = useState('fairRotation')
+  const [selectModal, setSelectModal] = useState(null) // { courtId }
+  const [selectSearch, setSelectSearch] = useState('')
+  const [selectShowAll, setSelectShowAll] = useState(false)
   const [doneModalCourt, setDoneModalCourt] = useState(null)
   const [tick, setTick] = useState(Date.now())
 
@@ -158,11 +162,42 @@ export default function QueueCourtsPanel({
                           e.dataTransfer.effectAllowed = 'move'
                         }}
                       >
-                        <div className="court-avatar">{playerName(id).charAt(0).toUpperCase()}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div className="court-avatar">{playerName(id).charAt(0).toUpperCase()}</div>
+                            <div className="court-player-name">{playerName(id)}</div>
+                          </div>
                       </div>
                     ) : (
-                      <div key={`a-${idx}`} className="court-player empty">
-                        <div className="court-avatar empty">+</div>
+                      <div
+                        key={`a-${idx}`}
+                        className="court-player empty"
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          const data = e.dataTransfer.getData('text/plain')
+                          if (!data) return
+                          try {
+                            const payload = JSON.parse(data)
+                            if (payload.type === 'queue') {
+                              onAssignPlayerToCourt && onAssignPlayerToCourt(c.id, payload.id, 'A', idx)
+                            } else if (payload.type === 'court') {
+                              if (payload.courtId !== c.id) {
+                                onRemovePlayerFromCourt && onRemovePlayerFromCourt(payload.courtId, payload.id)
+                                onAssignPlayerToCourt && onAssignPlayerToCourt(c.id, payload.id, 'A', idx)
+                              } else {
+                                onSwapCourtPlayer && onSwapCourtPlayer(c.id, payload.id, 'A', idx)
+                              }
+                            }
+                          } catch (err) {}
+                        }}
+                      >
+                        <div
+                          className="court-avatar empty"
+                          onClick={(e) => { e.stopPropagation(); setSelectModal({ courtId: c.id, team: 'A', idx }) }}
+                          style={{ cursor: 'pointer' }}
+                        >+
+                        </div>
                       </div>
                     )
                   })}
@@ -183,11 +218,42 @@ export default function QueueCourtsPanel({
                           e.dataTransfer.effectAllowed = 'move'
                         }}
                       >
-                        <div className="court-avatar">{playerName(id).charAt(0).toUpperCase()}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div className="court-player-name">{playerName(id)}</div>
+                          <div className="court-avatar">{playerName(id).charAt(0).toUpperCase()}</div>
+                        </div>
                       </div>
                     ) : (
-                      <div key={`b-${idx}`} className="court-player empty">
-                        <div className="court-avatar empty">+</div>
+                      <div
+                        key={`b-${idx}`}
+                        className="court-player empty"
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          const data = e.dataTransfer.getData('text/plain')
+                          if (!data) return
+                          try {
+                            const payload = JSON.parse(data)
+                            if (payload.type === 'queue') {
+                              onAssignPlayerToCourt && onAssignPlayerToCourt(c.id, payload.id, 'B', idx)
+                            } else if (payload.type === 'court') {
+                              if (payload.courtId !== c.id) {
+                                onRemovePlayerFromCourt && onRemovePlayerFromCourt(payload.courtId, payload.id)
+                                onAssignPlayerToCourt && onAssignPlayerToCourt(c.id, payload.id, 'B', idx)
+                              } else {
+                                onSwapCourtPlayer && onSwapCourtPlayer(c.id, payload.id, 'B', idx)
+                              }
+                            }
+                          } catch (err) {}
+                        }}
+                      >
+                        <div
+                          className="court-avatar empty"
+                          onClick={(e) => { e.stopPropagation(); setSelectModal({ courtId: c.id, team: 'B', idx }) }}
+                          style={{ cursor: 'pointer' }}
+                        >+
+                        </div>
                       </div>
                     )
                   })}
@@ -208,11 +274,18 @@ export default function QueueCourtsPanel({
       </div>
 
         {!pendingMatch && (
-          <div className="row" style={{ marginBottom: 12 }}>
-            <button className="btn gold" onClick={onAutoMatch} disabled={queuedPlayers.length < 4}>
+          <div className="row" style={{ marginBottom: 12, alignItems: 'center' }}>
+            <select value={assignStrategy} onChange={(e) => setAssignStrategy(e.target.value)} style={{ padding: '8px 10px', borderRadius: 10 }}>
+              <option value="fairRotation">Fair Rotation — ⭐ Recommended</option>
+              <option value="balancedSkill">Balanced Skill</option>
+              <option value="random">Random</option>
+            </select>
+
+            <button className="btn gold" onClick={() => onAutoMatch && onAutoMatch(assignStrategy)} disabled={queuedPlayers.length < 4}>
               ⚡ Auto-assign next match
             </button>
-            <span className="muted">Takes the 4 longest-waiting players, balanced by skill</span>
+
+            <span className="muted">Choose a matching strategy: Fair Rotation, Balanced Skill, or Random</span>
           </div>
         )}
 
@@ -228,7 +301,12 @@ export default function QueueCourtsPanel({
                     style={{ marginRight: 6, cursor: 'pointer' }}
                     onClick={() => onSwapPendingPlayer('A', id)}
                   >
-                    {playerName(id)}
+                    <div style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+                      <div className="leader-avatar" style={{ width: 28, height: 28, fontSize: 12, borderRadius: 8 }}>
+                        {playerName(id).split(' ').map((w) => w[0]).slice(0,2).join('').toUpperCase()}
+                      </div>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{playerName(id)}</div>
+                    </div>
                   </span>
                 ))}
               </span>
@@ -243,7 +321,12 @@ export default function QueueCourtsPanel({
                     style={{ marginRight: 6, cursor: 'pointer' }}
                     onClick={() => onSwapPendingPlayer('B', id)}
                   >
-                    {playerName(id)}
+                    <div style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+                      <div className="leader-avatar" style={{ width: 28, height: 28, fontSize: 12, borderRadius: 8 }}>
+                        {playerName(id).split(' ').map((w) => w[0]).slice(0,2).join('').toUpperCase()}
+                      </div>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{playerName(id)}</div>
+                    </div>
                   </span>
                 ))}
               </span>
@@ -359,6 +442,41 @@ export default function QueueCourtsPanel({
             setDoneModalCourt(null)
           }}
         />
+      )}
+
+      {selectModal && (
+        <div className="modal-backdrop" onClick={() => setSelectModal(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Select player for {selectModal.courtId}</h3>
+            <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input placeholder="Search players" value={selectSearch} onChange={(e) => setSelectSearch(e.target.value)} style={{ flex: 1 }} />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input type="checkbox" checked={selectShowAll} onChange={(e) => setSelectShowAll(e.target.checked)} />
+                <span className="muted" style={{ fontSize: 12 }}>Show all players</span>
+              </label>
+            </div>
+
+            <div style={{ maxHeight: 300, overflow: 'auto', marginTop: 8 }}>
+              {(() => {
+                const listSource = selectShowAll ? players.map((p) => ({ ...p })) : queuedPlayers
+                const filtered = listSource.filter((p) => p.name.toLowerCase().includes(selectSearch.trim().toLowerCase()))
+                if (filtered.length === 0) return <div className="muted">No matching players</div>
+                return filtered.map((p) => (
+                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <div>
+                      <div style={{ fontWeight: 700 }}>{p.name}</div>
+                      <div className="muted" style={{ fontSize: 12 }}>{skillLabel(p.skillLevel)}</div>
+                    </div>
+                    <div>
+                      <button className="btn small" onClick={() => { onAssignPlayerToCourt && onAssignPlayerToCourt(selectModal.courtId, p.id, selectModal.team, selectModal.idx); setSelectModal(null) }}>Add</button>
+                    </div>
+                  </div>
+                ))
+              })()}
+            </div>
+            </div>
+          </div>
+       
       )}
     </>
   )

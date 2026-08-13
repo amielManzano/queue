@@ -50,12 +50,13 @@ export default function App() {
   const [pendingMatch, setPendingMatch] = useState(null)
   const skipNextSave = useRef(false)
 
-  const storageKey = (id) => `stp-session:${id}`
+  const storageKey = (id) => (id ? `stp-session:${id}` : `stp-global`)
 
   const saveLocal = (id, data) => {
     try {
       localStorage.setItem(storageKey(id), JSON.stringify(data))
-      localStorage.setItem('stp-last-session', id)
+      if (id) localStorage.setItem('stp-last-session', id)
+      else localStorage.setItem('stp-last-session', localStorage.getItem('stp-last-session') || '')
     } catch (err) {
       console.warn('Failed to save local session', err)
     }
@@ -72,7 +73,9 @@ export default function App() {
 
   const clearLocal = (id) => {
     try {
+      // remove both session-specific and global backups
       if (id) localStorage.removeItem(storageKey(id))
+      localStorage.removeItem('stp-global')
       localStorage.removeItem('stp-last-session')
     } catch (err) {}
   }
@@ -91,6 +94,11 @@ export default function App() {
     // Always persist locally as well so refresh restores state even if Firestore is blocked
     try { saveLocal(sessionId, state) } catch (e) {}
   }, [state, connected, sessionId])
+
+  // Always persist locally on any state change so refresh keeps data even when not connected.
+  useEffect(() => {
+    try { saveLocal(sessionId || null, state) } catch (e) {}
+  }, [state, sessionId])
 
   const connect = async (id) => {
     if (!id) return
@@ -121,12 +129,17 @@ export default function App() {
     const last = localStorage.getItem('stp-last-session')
     if (last && !sessionId) {
       connect(last)
+      return
+    }
+    // if there's no last session, but we have a global saved state, restore it into the UI
+    if (!last && !sessionId) {
+      const global = loadLocal(null)
+      if (global) setState({ ...global, queue: normalizeQueue(global.queue) })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const clearSession = () => {
-    if (!sessionId) return
     if (!confirm('Clear local session data and leave session?')) return
     clearLocal(sessionId)
     setState(initialState)
@@ -181,11 +194,17 @@ export default function App() {
     update({ queue: q })
   }
 
-  const runAutoMatch = () => {
-    const result = autoMatch(state.queue.map((entry) => entry.id), state.players)
+  const runAutoMatch = (strategy = 'fairRotation') => {
+    const result = autoMatch(state.queue, state.players, strategy, state.games)
     if (!result) return
-    setPendingMatch({ teamA: result.teamA, teamB: result.teamB })
-    update({ queue: state.queue.filter((entry) => !result.teamA.includes(entry.id) && !result.teamB.includes(entry.id)) })
+    // find first empty court and assign directly
+    const empty = state.courts.find((c) => c.status === 'empty')
+    if (!empty) return
+    const courts = state.courts.map((c) =>
+      c.id === empty.id ? { ...c, status: 'assigned', teamA: result.teamA, teamB: result.teamB } : c
+    )
+    const newQueue = state.queue.filter((entry) => !result.teamA.includes(entry.id) && !result.teamB.includes(entry.id))
+    update({ courts, queue: newQueue })
   }
 
   const clearPending = () => {
@@ -217,18 +236,39 @@ export default function App() {
 
   // Assign a single player (from queue) to a court. If court already has players,
   // fill teamA then teamB. Removes the player from the queue.
-  const assignPlayerToCourt = (courtId, playerId) => {
-    const courts = state.courts.map((c) => {
-      if (c.id !== courtId) return c
-      const teamA = [...c.teamA]
-      const teamB = [...c.teamB]
-      if (teamA.length < 2) teamA.push(playerId)
-      else if (teamB.length < 2) teamB.push(playerId)
-      const status = teamA.length + teamB.length === 0 ? 'empty' : 'assigned'
-      return { ...c, teamA, teamB, status }
-    })
-    update({ courts, queue: state.queue.filter((entry) => entry.id !== playerId) })
-  }
+    const assignPlayerToCourt = (courtId, playerId, team, idx) => {
+      let displaced = null
+      const courts = state.courts.map((c) => {
+        if (c.id !== courtId) return c
+        const teamA = [...c.teamA]
+        const teamB = [...c.teamB]
+
+        if (team === 'A' && (idx === 0 || idx === 1)) {
+          displaced = teamA[idx]
+          teamA[idx] = playerId
+        } else if (team === 'B' && (idx === 0 || idx === 1)) {
+          displaced = teamB[idx]
+          teamB[idx] = playerId
+        } else {
+          // fallback: append to first available
+          if (teamA.length < 2) teamA.push(playerId)
+          else if (teamB.length < 2) teamB.push(playerId)
+        }
+
+        // remove duplicates across teams
+        const uniqA = teamA.filter(Boolean).filter((id, i, arr) => arr.indexOf(id) === i)
+        const uniqB = teamB.filter(Boolean).filter((id, i, arr) => arr.indexOf(id) === i)
+        const status = uniqA.length + uniqB.length === 0 ? 'empty' : 'assigned'
+        return { ...c, teamA: uniqA, teamB: uniqB, status }
+      })
+
+      const newQueue = state.queue.filter((entry) => entry.id !== playerId)
+      if (displaced && displaced !== playerId) {
+        newQueue.push({ id: displaced, queuedAt: Date.now() })
+      }
+
+      update({ courts, queue: newQueue })
+    }
 
   // Remove a player from a court and put them back to the end of the queue
   const removePlayerFromCourt = (courtId, playerId) => {
@@ -348,6 +388,7 @@ export default function App() {
             shuttlePrice={state.shuttlePrice}
             numCourts={numCourts}
             onUpdateSettings={onUpdateSettings}
+            onClearSession={clearSession}
           />
         )}
 
