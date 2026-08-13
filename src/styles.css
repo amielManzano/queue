@@ -525,7 +525,7 @@ tbody tr:hover td { background: rgba(0,0,0,0.02); }
 
 .leaderboard-grid .leader-card {
   display: grid;
-  grid-template-columns: 1fr 250px 1fr;
+  grid-template-columns: 1fr 30% 1fr;
 }
 
 /* Players page cards */
