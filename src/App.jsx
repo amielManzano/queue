@@ -4,9 +4,13 @@ import PlayersPanel from './components/PlayersPanel.jsx'
 import QueueCourtsPanel from './components/QueueCourtsPanel.jsx'
 import LeaderboardPanel from './components/LeaderboardPanel.jsx'
 import { autoMatch } from './utils/matching.js'
-import { createSession, listenToSession, saveSession } from './firebase.js'
+import { fetchSession, listenToSession, saveSession } from './firebase.js'
 
 const uid = () => Math.random().toString(36).slice(2, 10)
+
+// Single shared session for everyone using the app.
+const SESSION_ID = 'stp-shared-session'
+const STORAGE_KEY = 'stp-session-data'
 
 function makeCourts(n, existing = []) {
   return Array.from({ length: n }, (_, i) => {
@@ -41,111 +45,134 @@ const initialState = {
   games: []
 }
 
+// A doc counts as "real" data worth keeping if it has any players, a
+// non-empty queue, games recorded, or any court that isn't empty.
+// Used to decide whether local/remote data should win during reconciliation.
+function hasRealData(data) {
+  if (!data) return false
+  return (
+    (data.players && data.players.length > 0) ||
+    (data.queue && data.queue.length > 0) ||
+    (data.games && data.games.length > 0) ||
+    (data.courts && data.courts.some((c) => c.status !== 'empty'))
+  )
+}
+
 export default function App() {
-  const [tab, setTab] = useState('setup')
-  const [sessionId, setSessionId] = useState('')
+  const [tab, setTab] = useState('players')
   const [connected, setConnected] = useState(false)
   const [firebaseError, setFirebaseError] = useState('')
   const [state, setState] = useState(initialState)
   const [pendingMatch, setPendingMatch] = useState(null)
   const skipNextSave = useRef(false)
 
-  const storageKey = (id) => (id ? `stp-session:${id}` : `stp-global`)
-
-  const saveLocal = (id, data) => {
+  const saveLocal = (data) => {
     try {
-      localStorage.setItem(storageKey(id), JSON.stringify(data))
-      if (id) localStorage.setItem('stp-last-session', id)
-      else localStorage.setItem('stp-last-session', localStorage.getItem('stp-last-session') || '')
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
     } catch (err) {
       console.warn('Failed to save local session', err)
     }
   }
 
-  const loadLocal = (id) => {
+  const loadLocal = () => {
     try {
-      const raw = localStorage.getItem(storageKey(id))
+      const raw = localStorage.getItem(STORAGE_KEY)
       return raw ? JSON.parse(raw) : null
     } catch (err) {
       return null
     }
   }
 
-  const clearLocal = (id) => {
+  const clearLocal = () => {
     try {
-      // remove both session-specific and global backups
-      if (id) localStorage.removeItem(storageKey(id))
-      localStorage.removeItem('stp-global')
-      localStorage.removeItem('stp-last-session')
+      localStorage.removeItem(STORAGE_KEY)
     } catch (err) {}
   }
 
-  // Live sync: whenever local state changes (after connecting), push to Firebase.
+  // Live sync: whenever local state changes AFTER the initial reconciliation
+  // (connected === true), push to Firebase. Guarded so this can never fire
+  // before we've resolved local vs. remote on load.
   useEffect(() => {
     if (!connected) return
     if (skipNextSave.current) {
       skipNextSave.current = false
       return
     }
-    saveSession(sessionId, state).catch((err) => {
+    saveSession(SESSION_ID, state).catch((err) => {
       console.error('Firebase save failed:', err)
       setFirebaseError('Live sync unavailable. Working locally.')
     })
-    // Always persist locally as well so refresh restores state even if Firestore is blocked
-    try { saveLocal(sessionId, state) } catch (e) {}
-  }, [state, connected, sessionId])
+    try { saveLocal(state) } catch (e) {}
+  }, [state, connected])
 
-  // Always persist locally on any state change so refresh keeps data even when not connected.
+  // Always persist locally on any state change so a refresh keeps data even when offline.
   useEffect(() => {
-    try { saveLocal(sessionId || null, state) } catch (e) {}
-  }, [state, sessionId])
+    try { saveLocal(state) } catch (e) {}
+  }, [state])
 
-  const connect = async (id) => {
-    if (!id) return
-    setSessionId(id)
-    // If we have a local copy for this session, restore it immediately so refresh feels instant
-    const local = loadLocal(id)
-    if (local) setState({ ...local, queue: normalizeQueue(local.queue) })
-    setFirebaseError('')
-    try {
-      await createSession(id, initialState)
-    } catch (err) {
-      console.error('Firebase createSession failed (will still work locally):', err)
-      setFirebaseError('Live sync unavailable. Working locally.')
-    }
-    listenToSession(id, (remote) => {
-      skipNextSave.current = true
-      setState((s) => ({ ...s, ...remote, queue: normalizeQueue(remote.queue) }))
-    }, (err) => {
-      console.error('Firestore listener failed:', err)
-      setFirebaseError('Live sync unavailable. Working locally.')
-    })
-    setConnected(true)
-    setTab('players')
-  }
-
-  // Auto-reconnect to last session (if any) so refresh preserves session automatically
+  // Connect to the one shared session on mount. This runs the whole
+  // reconciliation IN ORDER (pull remote -> decide -> maybe push -> THEN
+  // start listening) so the live listener and the push-effect above can
+  // never race a stale/empty snapshot against good local data.
   useEffect(() => {
-    const last = localStorage.getItem('stp-last-session')
-    if (last && !sessionId) {
-      connect(last)
-      return
-    }
-    // if there's no last session, but we have a global saved state, restore it into the UI
-    if (!last && !sessionId) {
-      const global = loadLocal(null)
-      if (global) setState({ ...global, queue: normalizeQueue(global.queue) })
-    }
+    let unsubscribe = () => {}
+
+    ;(async () => {
+      const local = loadLocal()
+      setFirebaseError('')
+
+      try {
+        const remote = await fetchSession(SESSION_ID)
+
+        if (hasRealData(remote)) {
+          // Remote already has real data — trust it as the shared source of truth.
+          setState((s) => ({ ...s, ...remote, queue: normalizeQueue(remote.queue) }))
+        } else if (hasRealData(local)) {
+          // Remote is empty/missing but this browser has real local data
+          // (e.g. an earlier sync never landed) — push it up instead of
+          // silently letting it get overwritten by empty defaults.
+          setState({ ...local, queue: normalizeQueue(local.queue) })
+          await saveSession(SESSION_ID, local)
+        } else if (remote) {
+          // Remote exists but is empty defaults, and we have nothing local either.
+          setState((s) => ({ ...s, ...remote, queue: normalizeQueue(remote.queue) }))
+        } else {
+          // Nothing anywhere yet — initialize the doc.
+          await saveSession(SESSION_ID, initialState)
+        }
+      } catch (err) {
+        console.error('Firebase initial sync failed (will still work locally):', err)
+        setFirebaseError('Live sync unavailable. Working locally.')
+        if (hasRealData(local)) {
+          setState({ ...local, queue: normalizeQueue(local.queue) })
+        }
+      }
+
+      // Only now, after reconciliation is settled, start listening for
+      // changes from other clients and allow the push-effect to run.
+      unsubscribe = listenToSession(SESSION_ID, (remote) => {
+        skipNextSave.current = true
+        setState((s) => ({ ...s, ...remote, queue: normalizeQueue(remote.queue) }))
+      }, (err) => {
+        console.error('Firestore listener failed:', err)
+        setFirebaseError('Live sync unavailable. Working locally.')
+      })
+
+      setConnected(true)
+    })()
+
+    return () => unsubscribe()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const clearSession = () => {
-    if (!confirm('Clear local session data and leave session?')) return
-    clearLocal(sessionId)
+    if (!confirm('Clear all session data for everyone? This cannot be undone.')) return
+    clearLocal()
     setState(initialState)
-    setSessionId('')
-    setConnected(false)
-    setTab('setup')
+    saveSession(SESSION_ID, initialState).catch((err) => {
+      console.error('Failed to clear remote session:', err)
+      setFirebaseError('Live sync unavailable. Working locally.')
+    })
   }
 
   const update = (patch) => setState((s) => ({ ...s, ...patch }))
@@ -236,39 +263,39 @@ export default function App() {
 
   // Assign a single player (from queue) to a court. If court already has players,
   // fill teamA then teamB. Removes the player from the queue.
-    const assignPlayerToCourt = (courtId, playerId, team, idx) => {
-      let displaced = null
-      const courts = state.courts.map((c) => {
-        if (c.id !== courtId) return c
-        const teamA = [...c.teamA]
-        const teamB = [...c.teamB]
+  const assignPlayerToCourt = (courtId, playerId, team, idx) => {
+    let displaced = null
+    const courts = state.courts.map((c) => {
+      if (c.id !== courtId) return c
+      const teamA = [...c.teamA]
+      const teamB = [...c.teamB]
 
-        if (team === 'A' && (idx === 0 || idx === 1)) {
-          displaced = teamA[idx]
-          teamA[idx] = playerId
-        } else if (team === 'B' && (idx === 0 || idx === 1)) {
-          displaced = teamB[idx]
-          teamB[idx] = playerId
-        } else {
-          // fallback: append to first available
-          if (teamA.length < 2) teamA.push(playerId)
-          else if (teamB.length < 2) teamB.push(playerId)
-        }
-
-        // remove duplicates across teams
-        const uniqA = teamA.filter(Boolean).filter((id, i, arr) => arr.indexOf(id) === i)
-        const uniqB = teamB.filter(Boolean).filter((id, i, arr) => arr.indexOf(id) === i)
-        const status = uniqA.length + uniqB.length === 0 ? 'empty' : 'assigned'
-        return { ...c, teamA: uniqA, teamB: uniqB, status }
-      })
-
-      const newQueue = state.queue.filter((entry) => entry.id !== playerId)
-      if (displaced && displaced !== playerId) {
-        newQueue.push({ id: displaced, queuedAt: Date.now() })
+      if (team === 'A' && (idx === 0 || idx === 1)) {
+        displaced = teamA[idx]
+        teamA[idx] = playerId
+      } else if (team === 'B' && (idx === 0 || idx === 1)) {
+        displaced = teamB[idx]
+        teamB[idx] = playerId
+      } else {
+        // fallback: append to first available
+        if (teamA.length < 2) teamA.push(playerId)
+        else if (teamB.length < 2) teamB.push(playerId)
       }
 
-      update({ courts, queue: newQueue })
+      // remove duplicates across teams
+      const uniqA = teamA.filter(Boolean).filter((id, i, arr) => arr.indexOf(id) === i)
+      const uniqB = teamB.filter(Boolean).filter((id, i, arr) => arr.indexOf(id) === i)
+      const status = uniqA.length + uniqB.length === 0 ? 'empty' : 'assigned'
+      return { ...c, teamA: uniqA, teamB: uniqB, status }
+    })
+
+    const newQueue = state.queue.filter((entry) => entry.id !== playerId)
+    if (displaced && displaced !== playerId) {
+      newQueue.push({ id: displaced, queuedAt: Date.now() })
     }
+
+    update({ courts, queue: newQueue })
+  }
 
   // Remove a player from a court and put them back to the end of the queue
   const removePlayerFromCourt = (courtId, playerId) => {
@@ -381,9 +408,7 @@ export default function App() {
       <div className="content">
         {tab === 'setup' && (
           <SetupPanel
-            sessionId={sessionId}
             connected={connected}
-            onConnect={connect}
             courtFee={state.courtFee}
             shuttlePrice={state.shuttlePrice}
             numCourts={numCourts}
@@ -430,7 +455,7 @@ export default function App() {
         {tab === 'leaderboard' && (
           <LeaderboardPanel
             players={state.players}
-            sessionId={sessionId}
+            sessionId={SESSION_ID}
           />
         )}
       </div>

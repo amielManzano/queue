@@ -4,6 +4,7 @@ import {
   doc,
   collection,
   setDoc,
+  getDoc,
   onSnapshot,
   serverTimestamp,
   query,
@@ -34,11 +35,29 @@ export function sessionRef(sessionId) {
   return doc(db, SESSIONS, sessionId)
 }
 
+// One-time read. Returns the doc's data, or null if it doesn't exist yet.
+// Used to reconcile local vs. remote BEFORE attaching the live listener,
+// so we never race a stale/empty snapshot against fresh local data.
+export async function fetchSession(sessionId) {
+  const snap = await getDoc(sessionRef(sessionId))
+  return snap.exists() ? snap.data() : null
+}
+
+// Only initializes the session doc if it doesn't already exist.
+// Never overwrites live data — safe to call on every app load.
 export async function createSession(sessionId, initialState) {
-  return setDoc(sessionRef(sessionId), {
+  const ref = sessionRef(sessionId)
+  const existing = await getDoc(ref)
+
+  if (existing.exists()) {
+    return existing.data()
+  }
+
+  await setDoc(ref, {
     ...initialState,
     createdAt: serverTimestamp()
   })
+  return initialState
 }
 
 export async function saveSession(sessionId, state) {
