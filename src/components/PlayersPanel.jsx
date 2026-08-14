@@ -89,7 +89,7 @@ export default function PlayersPanel({ players, games, courtFee, onAddPlayer, on
               </div>
               <div className="leader-stat">
                 <span className="label">Shuttles</span>
-                <span className="value">{p.shuttlesUsed ? p.shuttlesUsed.toFixed(1) : '0.0'}</span>
+                <span className="value">{p.shuttlesUsed ? p.shuttlesUsed.toFixed(2) : '0.00'}</span>
               </div>
               <div className="leader-stat">
                 <span className="label">Payment</span>

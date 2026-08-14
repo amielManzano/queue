@@ -72,7 +72,8 @@ export default function QueueCourtsPanel({
   onRemovePlayerFromCourt,
   onStartGame,
   onDoneGame,
-  onSwapCourtPlayer
+  onSwapCourtPlayer,
+  onRenameCourt
 }) {
   const [assignStrategy, setAssignStrategy] = useState('fairRotation')
   const [selectModal, setSelectModal] = useState(null) // { courtId }
@@ -80,6 +81,8 @@ export default function QueueCourtsPanel({
   const [selectShowAll, setSelectShowAll] = useState(false)
   const [doneModalCourt, setDoneModalCourt] = useState(null)
   const [tick, setTick] = useState(Date.now())
+  const [editingCourtId, setEditingCourtId] = useState(null)
+  const [editingCourtName, setEditingCourtName] = useState('')
 
   useEffect(() => {
     const timer = window.setInterval(() => setTick(Date.now()), 1000)
@@ -100,6 +103,29 @@ export default function QueueCourtsPanel({
     const minutes = Math.floor(totalSeconds / 60)
     const seconds = totalSeconds % 60
     return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`
+  }
+
+  const formatGameDuration = (startedAt) => {
+    if (!startedAt) return null
+    const delta = tick - startedAt
+    const totalSeconds = Math.max(0, Math.floor(delta / 1000))
+    const minutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+    return `${minutes}:${String(seconds).padStart(2, '0')}`
+  }
+
+  const startEditingCourtName = (c) => {
+    setEditingCourtId(c.id)
+    setEditingCourtName(c.name)
+  }
+
+  const commitCourtName = () => {
+    const name = editingCourtName.trim()
+    if (name && editingCourtId) {
+      onRenameCourt && onRenameCourt(editingCourtId, name)
+    }
+    setEditingCourtId(null)
+    setEditingCourtName('')
   }
 
   const exportImage = async () => {
@@ -141,9 +167,26 @@ export default function QueueCourtsPanel({
               }}
             >
               <h3>
-                {c.name}
+                {editingCourtId === c.id ? (
+                  <input
+                    autoFocus
+                    value={editingCourtName}
+                    onChange={(e) => setEditingCourtName(e.target.value)}
+                    onBlur={commitCourtName}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitCourtName()
+                      if (e.key === 'Escape') { setEditingCourtId(null); setEditingCourtName('') }
+                    }}
+                    style={{ fontSize: 'inherit', fontWeight: 'inherit', width: 100 }}
+                  />
+                ) : (
+                  <span onClick={() => startEditingCourtName(c)} style={{ cursor: 'pointer' }} title="Click to rename">
+                    {c.name}
+                  </span>
+                )}
                 <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>
                   {c.status === 'empty' ? 'Empty' : c.status === 'assigned' ? 'Ready' : 'In progress'}
+                  {c.status === 'playing' && formatGameDuration(c.startedAt) && ` · ${formatGameDuration(c.startedAt)}`}
                 </span>
               </h3>
 

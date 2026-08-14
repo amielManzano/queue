@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react'
 import html2canvas from 'html2canvas'
+import { skillLabel } from '../utils/matching.js'
 
 // iOS Safari (including standalone/homescreen PWA mode) does not reliably
 // support triggering downloads via <a download>. iPadOS 13+ also reports
@@ -48,8 +49,8 @@ export default function LeaderboardPanel({ players, sessionId }) {
   }
 
   return (
-    <div className="panel" ref={exportRef}>
-      <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+    <div className="panel leaderboard-panel" ref={exportRef}>
+      <div className="row leaderboard-header" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <h2 style={{ margin: 0 }}>Leaderboard</h2>
         <button className="btn" onClick={exportImage} disabled={exporting || ranked.length === 0}>
           {exporting ? 'Exporting…' : '⬇ Export as Image'}
@@ -66,18 +67,22 @@ export default function LeaderboardPanel({ players, sessionId }) {
             const rankClass = i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : ''
             return (
               <div key={p.id} className={`leader-card ${rankClass}`}>
+                <div className={`leader-rank ${rankClass}`}>
+                  {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
+                </div>
+
                 <div className="leader-summary">
                   <div className="leader-avatar">{initials}</div>
                   <div className="leader-info">
                     <div className="leader-name">{p.name}</div>
                     <div className="leader-meta">
-                      <span>#{i + 1}</span>
+                      <span>{skillLabel(p.skillLevel)}</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="leader-rate">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--muted)' }}>
+                  <div className="leader-rate-top">
                     <span>Win rate</span>
                     <strong>{winRate}%</strong>
                   </div>
