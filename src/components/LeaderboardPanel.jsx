@@ -72,18 +72,25 @@ export default function LeaderboardPanel({ players, sessionId }) {
         // a long-press preview.
         const dataUrl = canvas.toDataURL('image/png')
         const filename = `${sessionId || 'stp-session'}-results.png`
-        const blob = await (await fetch(dataUrl)).blob()
-        const file = new File([blob], filename, { type: 'image/png' })
+        try {
+          const blob = await new Promise((resolve, reject) => {
+            canvas.toBlob((value) => {
+              if (value) resolve(value)
+              else reject(new Error('Could not create PNG'))
+            }, 'image/png')
+          })
+          const file = new File([blob], filename, { type: 'image/png' })
 
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          try {
+          if (navigator.canShare?.({ files: [file] })) {
             await navigator.share({ files: [file], title: filename })
             return
-          } catch (err) {
-            if (err?.name === 'AbortError') return // user cancelled the share sheet
           }
+        } catch (err) {
+          if (err?.name === 'AbortError') return // user cancelled the share sheet
         }
 
+        // Safari can reject share() after the async canvas conversion loses
+        // the original tap activation; the preview still supports Save Image.
         setPreviewUrl(dataUrl)
       } else {
         const link = document.createElement('a')
