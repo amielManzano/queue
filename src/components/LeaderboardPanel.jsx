@@ -1,12 +1,5 @@
 import React, { useRef, useState } from 'react'
-import html2canvas from 'html2canvas'
 import { skillLabel } from '../utils/matching.js'
-
-function isIOS() {
-  if (typeof navigator === 'undefined') return false
-  return /iPad|iPhone|iPod/.test(navigator.userAgent || '') ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-}
 
 // Minimum sample size before a player's win rate is trusted enough to rank on it.
 const MIN_GAMES = 5
@@ -21,6 +14,52 @@ const SORT_DESCRIPTIONS = {
   minGames: `Ranks by win rate, but players need at least ${MIN_GAMES} games to qualify.`,
   winsFirst: 'Ranks by total wins first, win rate only breaks ties.',
   composite: 'Blends net wins (wins minus losses) with win rate scaled by games played, balancing volume and consistency.'
+}
+
+function createLeaderboardImage(players) {
+  const width = 900
+  const rowHeight = 86
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = 116 + players.length * rowHeight
+  const context = canvas.getContext('2d')
+
+  context.fillStyle = '#ffffff'
+  context.fillRect(0, 0, canvas.width, canvas.height)
+  context.fillStyle = '#0b0b0b'
+  context.font = '800 30px sans-serif'
+  context.fillText('LEADERBOARD', 36, 48)
+  context.font = '16px sans-serif'
+  context.fillStyle = '#6b7280'
+  context.fillText('STP BADMINTON RESULTS', 36, 76)
+
+  players.forEach((player, index) => {
+    const y = 96 + index * rowHeight
+    const winRate = player.gamesPlayed ? Math.round((player.wins / player.gamesPlayed) * 100) : 0
+    const rank = index + 1
+
+    context.fillStyle = index < 3 ? ['#fff1c4', '#e4e4e4', '#ffe2b8'][index] : '#f8f8f6'
+    context.fillRect(24, y, width - 48, rowHeight - 10)
+    context.fillStyle = '#0b0b0b'
+    context.font = '800 20px sans-serif'
+    context.fillText(`#${rank}`, 42, y + 32)
+    context.font = '800 18px sans-serif'
+    context.fillText(String(player.name).slice(0, 28), 100, y + 30)
+    context.fillStyle = '#6b7280'
+    context.font = '14px sans-serif'
+    context.fillText(skillLabel(player.skillLevel), 100, y + 54)
+    context.fillStyle = '#0b0b0b'
+    context.font = '800 18px sans-serif'
+    context.fillText(`${winRate}%`, 610, y + 30)
+    context.font = '14px sans-serif'
+    context.fillStyle = '#6b7280'
+    context.fillText('Win rate', 660, y + 30)
+    context.fillText(`${player.gamesPlayed} games  ${player.wins}-${player.losses}`, 610, y + 54)
+    context.fillStyle = '#ffb703'
+    context.fillRect(100, y + 67, Math.max(4, 460 * winRate / 100), 6)
+  })
+
+  return canvas.toDataURL('image/png')
 }
 
 export default function LeaderboardPanel({ players, sessionId }) {
@@ -61,15 +100,7 @@ export default function LeaderboardPanel({ players, sessionId }) {
     setExporting(true)
     setExportError('')
     try {
-      const options = { backgroundColor: null, scale: isIOS() ? 1 : 2, useCORS: true }
-      let canvas
-      try {
-        canvas = await html2canvas(exportRef.current, options)
-      } catch (error) {
-        if (!isIOS()) throw error
-        canvas = await html2canvas(exportRef.current, { ...options, scale: 0.5 })
-      }
-      setPreviewUrl(canvas.toDataURL('image/png'))
+      setPreviewUrl(createLeaderboardImage(ranked))
     } catch (error) {
       console.error('Could not export leaderboard image', error)
       setExportError('Could not create the image on this device. Please try again.')
