@@ -61,11 +61,14 @@ export default function LeaderboardPanel({ players, sessionId }) {
     setExporting(true)
     setExportError('')
     try {
-      const canvas = await html2canvas(exportRef.current, {
-        backgroundColor: null,
-        scale: isIOS() ? 1 : 2,
-        useCORS: true
-      })
+      const options = { backgroundColor: null, scale: isIOS() ? 1 : 2, useCORS: true }
+      let canvas
+      try {
+        canvas = await html2canvas(exportRef.current, options)
+      } catch (error) {
+        if (!isIOS()) throw error
+        canvas = await html2canvas(exportRef.current, { ...options, scale: 0.5 })
+      }
       setPreviewUrl(canvas.toDataURL('image/png'))
     } catch (error) {
       console.error('Could not export leaderboard image', error)
