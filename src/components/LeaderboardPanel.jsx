@@ -2,6 +2,12 @@ import React, { useRef, useState } from 'react'
 import html2canvas from 'html2canvas'
 import { skillLabel } from '../utils/matching.js'
 
+function isIOS() {
+  if (typeof navigator === 'undefined') return false
+  return /iPad|iPhone|iPod/.test(navigator.userAgent || '') ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+}
+
 // Minimum sample size before a player's win rate is trusted enough to rank on it.
 const MIN_GAMES = 5
 
@@ -21,6 +27,7 @@ export default function LeaderboardPanel({ players, sessionId }) {
   const exportRef = useRef(null)
   const [exporting, setExporting] = useState(false)
   const [previewUrl, setPreviewUrl] = useState(null)
+  const [exportError, setExportError] = useState('')
   const [sortMode, setSortMode] = useState('minGames')
 
   const ranked = [...players]
@@ -52,9 +59,17 @@ export default function LeaderboardPanel({ players, sessionId }) {
   const exportImage = async () => {
     if (!exportRef.current) return
     setExporting(true)
+    setExportError('')
     try {
-      const canvas = await html2canvas(exportRef.current, { backgroundColor: null, scale: 2 })
+      const canvas = await html2canvas(exportRef.current, {
+        backgroundColor: null,
+        scale: isIOS() ? 1 : 2,
+        useCORS: true
+      })
       setPreviewUrl(canvas.toDataURL('image/png'))
+    } catch (error) {
+      console.error('Could not export leaderboard image', error)
+      setExportError('Could not create the image on this device. Please try again.')
     } finally {
       setExporting(false)
     }
@@ -80,6 +95,8 @@ export default function LeaderboardPanel({ players, sessionId }) {
           </button>
         </div>
       </div>
+
+      {exportError && <div className="error-text" role="alert">{exportError}</div>}
 
       <div className="leaderboard-sort-hint">{SORT_DESCRIPTIONS[sortMode]}</div>
 
