@@ -39,6 +39,11 @@ const COLORS = {
     top2: 'rgba(180,180,180,0.5)',
     top3: 'rgba(205,133,63,0.4)',
     default: 'rgba(16,16,16,0.06)'
+  },
+  medal: {
+    top1: { fill: ['#ffe066', '#e6a400'], text: '#5c3d00' },
+    top2: { fill: ['#eef0f2', '#b7bcc2'], text: '#3a3d40' },
+    top3: { fill: ['#f0b27a', '#b5651d'], text: '#4a2a0f' }
   }
 }
 
@@ -160,10 +165,18 @@ function drawLeaderboardImage(players, sortDescription) {
     // Rank
     const rankCenterX = colX + rankColW / 2
     if (variant === 'top1' || variant === 'top2' || variant === 'top3') {
-      const medal = variant === 'top1' ? '🥇' : variant === 'top2' ? '🥈' : '🥉'
-      ctx.font = '20px sans-serif'
+      const medalColors = COLORS.medal[variant]
+      const medalGrad = ctx.createLinearGradient(rankCenterX - 16, centerY - 16, rankCenterX + 16, centerY + 16)
+      medalGrad.addColorStop(0, medalColors.fill[0])
+      medalGrad.addColorStop(1, medalColors.fill[1])
+      ctx.beginPath()
+      ctx.arc(rankCenterX, centerY, 16, 0, Math.PI * 2)
+      ctx.fillStyle = medalGrad
+      ctx.fill()
+      ctx.fillStyle = medalColors.text
+      ctx.font = '800 13px Inter, sans-serif'
       ctx.textAlign = 'center'
-      ctx.fillText(medal, rankCenterX, centerY + 7)
+      ctx.fillText(String(index + 1), rankCenterX, centerY + 4)
     } else {
       ctx.beginPath()
       ctx.arc(rankCenterX, centerY, 16, 0, Math.PI * 2)
