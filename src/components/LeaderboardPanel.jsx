@@ -2,17 +2,6 @@ import React, { useRef, useState } from 'react'
 import html2canvas from 'html2canvas'
 import { skillLabel } from '../utils/matching.js'
 
-// iOS Safari (including standalone/homescreen PWA mode) does not reliably
-// support triggering downloads via <a download>. iPadOS 13+ also reports
-// as "Mac" in the user agent but has touch points, so we check for that too.
-function isIOS() {
-  if (typeof navigator === 'undefined') return false
-  const ua = navigator.userAgent || ''
-  const isAppleTouch = /iPad|iPhone|iPod/.test(ua)
-  const isIPadOS13Plus = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
-  return isAppleTouch || isIPadOS13Plus
-}
-
 // Minimum sample size before a player's win rate is trusted enough to rank on it.
 const MIN_GAMES = 5
 
@@ -65,18 +54,7 @@ export default function LeaderboardPanel({ players, sessionId }) {
     setExporting(true)
     try {
       const canvas = await html2canvas(exportRef.current, { backgroundColor: null, scale: 2 })
-
-      if (isIOS()) {
-        // <a download> is ignored on iOS Safari/PWA, so show the image
-        // directly and let the user press and hold to save it.
-        const dataUrl = canvas.toDataURL('image/png')
-        setPreviewUrl(dataUrl)
-      } else {
-        const link = document.createElement('a')
-        link.download = `${sessionId || 'stp-session'}-results.png`
-        link.href = canvas.toDataURL('image/png')
-        link.click()
-      }
+      setPreviewUrl(canvas.toDataURL('image/png'))
     } finally {
       setExporting(false)
     }
