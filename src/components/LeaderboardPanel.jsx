@@ -16,47 +16,69 @@ const SORT_DESCRIPTIONS = {
   composite: 'Blends net wins (wins minus losses) with win rate scaled by games played, balancing volume and consistency.'
 }
 
+function fillRoundedRect(context, x, y, width, height, radius, color) {
+  context.beginPath()
+  context.moveTo(x + radius, y)
+  context.arcTo(x + width, y, x + width, y + height, radius)
+  context.arcTo(x + width, y + height, x, y + height, radius)
+  context.arcTo(x, y + height, x, y, radius)
+  context.arcTo(x, y, x + width, y, radius)
+  context.closePath()
+  context.fillStyle = color
+  context.fill()
+}
+
 function createLeaderboardImage(players) {
   const width = 900
-  const rowHeight = 86
+  const rowHeight = 104
   const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = 116 + players.length * rowHeight
+  canvas.width = width * 2
+  canvas.height = (128 + players.length * rowHeight) * 2
   const context = canvas.getContext('2d')
+  context.scale(2, 2)
 
-  context.fillStyle = '#ffffff'
-  context.fillRect(0, 0, canvas.width, canvas.height)
+  fillRoundedRect(context, 0, 0, width, 128 + players.length * rowHeight, 14, '#ffffff')
   context.fillStyle = '#0b0b0b'
-  context.font = '800 30px sans-serif'
-  context.fillText('LEADERBOARD', 36, 48)
+  context.font = '800 24px sans-serif'
+  context.fillText('Leaderboard', 28, 38)
   context.font = '16px sans-serif'
   context.fillStyle = '#6b7280'
-  context.fillText('STP BADMINTON RESULTS', 36, 76)
+  context.fillText('Rankings by win rate (minimum games)', 28, 66)
 
   players.forEach((player, index) => {
-    const y = 96 + index * rowHeight
+    const y = 86 + index * rowHeight
     const winRate = player.gamesPlayed ? Math.round((player.wins / player.gamesPlayed) * 100) : 0
     const rank = index + 1
+    const initials = String(player.name).split(' ').map((word) => word[0]).slice(0, 2).join('').toUpperCase()
 
-    context.fillStyle = index < 3 ? ['#fff1c4', '#e4e4e4', '#ffe2b8'][index] : '#f8f8f6'
-    context.fillRect(24, y, width - 48, rowHeight - 10)
+    fillRoundedRect(context, 24, y, width - 48, rowHeight - 14, 16, index === 0 ? '#fff1c4' : index === 1 ? '#e4e4e4' : index === 2 ? '#ffe2b8' : '#f8f8f6')
     context.fillStyle = '#0b0b0b'
-    context.font = '800 20px sans-serif'
-    context.fillText(`#${rank}`, 42, y + 32)
-    context.font = '800 18px sans-serif'
-    context.fillText(String(player.name).slice(0, 28), 100, y + 30)
-    context.fillStyle = '#6b7280'
-    context.font = '14px sans-serif'
-    context.fillText(skillLabel(player.skillLevel), 100, y + 54)
-    context.fillStyle = '#0b0b0b'
-    context.font = '800 18px sans-serif'
-    context.fillText(`${winRate}%`, 610, y + 30)
-    context.font = '14px sans-serif'
-    context.fillStyle = '#6b7280'
-    context.fillText('Win rate', 660, y + 30)
-    context.fillText(`${player.gamesPlayed} games  ${player.wins}-${player.losses}`, 610, y + 54)
+    context.font = '800 17px sans-serif'
+    context.fillText(`#${rank}`, 38, y + 34)
+    context.beginPath()
+    context.arc(92, y + 37, 22, 0, Math.PI * 2)
     context.fillStyle = '#ffb703'
-    context.fillRect(100, y + 67, Math.max(4, 460 * winRate / 100), 6)
+    context.fill()
+    context.fillStyle = '#0b0b0b'
+    context.font = '800 14px sans-serif'
+    context.textAlign = 'center'
+    context.fillText(initials, 92, y + 42)
+    context.textAlign = 'left'
+    context.font = '800 18px sans-serif'
+    context.fillText(String(player.name).slice(0, 25), 128, y + 31)
+    context.fillStyle = '#6b7280'
+    context.font = '14px sans-serif'
+    context.fillText(skillLabel(player.skillLevel), 128, y + 55)
+    context.fillStyle = '#0b0b0b'
+    context.font = '800 18px sans-serif'
+    context.fillText(`${winRate}%`, 570, y + 31)
+    context.font = '14px sans-serif'
+    context.fillStyle = '#6b7280'
+    context.fillText('Win rate', 625, y + 31)
+    context.fillText(`${player.gamesPlayed} games`, 570, y + 55)
+    context.fillText(`${player.wins}-${player.losses}`, 730, y + 55)
+    fillRoundedRect(context, 128, y + 72, 390, 8, 4, 'rgba(16,16,16,0.08)')
+    fillRoundedRect(context, 128, y + 72, Math.max(4, 390 * winRate / 100), 8, 4, '#ffb703')
   })
 
   return canvas.toDataURL('image/png')
