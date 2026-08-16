@@ -16,69 +16,226 @@ const SORT_DESCRIPTIONS = {
   composite: 'Blends net wins (wins minus losses) with win rate scaled by games played, balancing volume and consistency.'
 }
 
-function fillRoundedRect(context, x, y, width, height, radius, color) {
+// Design tokens pulled straight from the site's CSS (:root and .leader-card
+// rules) so the drawn image uses the exact same colors as the live UI.
+const COLORS = {
+  ink: '#0b1b2c',
+  court: '#0b0b0b',
+  muted: '#6b7280',
+  shuttle: '#ffb703',
+  shuttleDark: '#e6a400',
+  panelBg: '#ffffff',
+  cardBorder: 'rgba(16,16,16,0.06)',
+  rankBg: 'rgba(16,16,16,0.05)',
+  barTrack: 'rgba(16,16,16,0.08)',
+  rowGradients: {
+    top1: ['#fffae6', '#fff1c4'],
+    top2: ['#f5f5f5', '#e4e4e4'],
+    top3: ['#fff3e2', '#ffe2b8'],
+    default: ['#ffffff', '#f8f8f6']
+  },
+  rowBorders: {
+    top1: 'rgba(255,183,3,0.4)',
+    top2: 'rgba(180,180,180,0.5)',
+    top3: 'rgba(205,133,63,0.4)',
+    default: 'rgba(16,16,16,0.06)'
+  }
+}
+
+function roundRectPath(context, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2)
   context.beginPath()
-  context.moveTo(x + radius, y)
-  context.arcTo(x + width, y, x + width, y + height, radius)
-  context.arcTo(x + width, y + height, x, y + height, radius)
-  context.arcTo(x, y + height, x, y, radius)
-  context.arcTo(x, y, x + width, y, radius)
+  context.moveTo(x + r, y)
+  context.arcTo(x + width, y, x + width, y + height, r)
+  context.arcTo(x + width, y + height, x, y + height, r)
+  context.arcTo(x, y + height, x, y, r)
+  context.arcTo(x, y, x + width, y, r)
   context.closePath()
+}
+
+function fillRoundedRect(context, x, y, width, height, radius, color) {
+  roundRectPath(context, x, y, width, height, radius)
   context.fillStyle = color
   context.fill()
 }
 
-function createLeaderboardImage(players) {
-  const width = 900
-  const rowHeight = 104
-  const canvas = document.createElement('canvas')
-  canvas.width = width * 2
-  canvas.height = (128 + players.length * rowHeight) * 2
-  const context = canvas.getContext('2d')
-  context.scale(2, 2)
+function strokeRoundedRect(context, x, y, width, height, radius, color, lineWidth = 1) {
+  roundRectPath(context, x, y, width, height, radius)
+  context.strokeStyle = color
+  context.lineWidth = lineWidth
+  context.stroke()
+}
 
-  fillRoundedRect(context, 0, 0, width, 128 + players.length * rowHeight, 14, '#ffffff')
-  context.fillStyle = '#0b0b0b'
-  context.font = '800 24px sans-serif'
-  context.fillText('Leaderboard', 28, 38)
-  context.font = '16px sans-serif'
-  context.fillStyle = '#6b7280'
-  context.fillText('Rankings by win rate (minimum games)', 28, 66)
+function truncateToWidth(context, text, maxWidth) {
+  if (context.measureText(text).width <= maxWidth) return text
+  let result = text
+  while (result.length > 1 && context.measureText(result + '…').width > maxWidth) {
+    result = result.slice(0, -1)
+  }
+  return result + '…'
+}
+
+function isIOS() {
+  if (typeof navigator === 'undefined') return false
+  return /iPad|iPhone|iPod/.test(navigator.userAgent || '') ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+}
+
+// Draws the leaderboard entirely with the Canvas 2D API — real canvas
+// gradients, rounded rects, and text always render identically across
+// devices, unlike a DOM screenshot (html2canvas), which approximates CSS
+// and can render CSS Grid / gradients differently per browser/OS. This is
+// the single source of truth for the exported image.
+function drawLeaderboardImage(players, sortDescription) {
+  const dpr = 2 // fixed export resolution, independent of device pixel ratio
+  const width = 860
+  const paddingX = 24
+  const paddingTop = 26
+  const titleToRowsGap = 20
+  const rowHeight = 78
+  const rowGap = 10
+  const rowsHeight = players.length * rowHeight + Math.max(0, players.length - 1) * rowGap
+  const height = paddingTop + 30 + 34 + titleToRowsGap + rowsHeight + 24
+
+  const canvas = document.createElement('canvas')
+  canvas.width = width * dpr
+  canvas.height = height * dpr
+  const ctx = canvas.getContext('2d')
+  ctx.scale(dpr, dpr)
+  ctx.textBaseline = 'alphabetic'
+
+  // Panel background
+  fillRoundedRect(ctx, 0, 0, width, height, 12, COLORS.panelBg)
+
+  // Title
+  ctx.fillStyle = COLORS.court
+  ctx.font = '800 18px "Archivo Black", Inter, sans-serif'
+  ctx.fillText('LEADERBOARD', paddingX, paddingTop + 16)
+
+  ctx.fillStyle = COLORS.muted
+  ctx.font = '12px Inter, sans-serif'
+  ctx.fillText(sortDescription, paddingX, paddingTop + 36)
+
+  const rowsTop = paddingTop + 30 + 34 + titleToRowsGap - 26
+  const rowWidth = width - paddingX * 2
+
+  // Row content is inset from the card's own edges (mirrors .leader-card's
+  // own padding: 12px 16px) — columns are laid out within that inner
+  // width, not the full row width, so nothing bleeds past the rounded
+  // card border.
+  const rowInsetX = 16
+  const contentWidth = rowWidth - rowInsetX * 2
+
+  // Column layout mirrors .leaderboard-grid .leader-card's
+  // grid-template-columns: auto 1fr 30% 1fr. CSS Grid resolves percentage
+  // tracks (30%) against the full content box, then splits any remaining
+  // space evenly between the fr tracks — not against whatever's left
+  // after the other columns, which is what previously pushed the last
+  // column past the row's right edge.
+  const gap = 12
+  const rankColW = 46
+  const rateColW = contentWidth * 0.30
+  const frRemaining = contentWidth - rankColW - rateColW - gap * 3
+  const nameColW = frRemaining / 2
+  const statsColW = frRemaining / 2
 
   players.forEach((player, index) => {
-    const y = 86 + index * rowHeight
-    const winRate = player.gamesPlayed ? Math.round((player.wins / player.gamesPlayed) * 100) : 0
-    const rank = index + 1
-    const initials = String(player.name).split(' ').map((word) => word[0]).slice(0, 2).join('').toUpperCase()
+    const y = rowsTop + index * (rowHeight + rowGap)
+    const variant = index === 0 ? 'top1' : index === 1 ? 'top2' : index === 2 ? 'top3' : 'default'
+    const [gradStart, gradEnd] = COLORS.rowGradients[variant]
 
-    fillRoundedRect(context, 24, y, width - 48, rowHeight - 14, 16, index === 0 ? '#fff1c4' : index === 1 ? '#e4e4e4' : index === 2 ? '#ffe2b8' : '#f8f8f6')
-    context.fillStyle = '#0b0b0b'
-    context.font = '800 17px sans-serif'
-    context.fillText(`#${rank}`, 38, y + 34)
-    context.beginPath()
-    context.arc(92, y + 37, 22, 0, Math.PI * 2)
-    context.fillStyle = '#ffb703'
-    context.fill()
-    context.fillStyle = '#0b0b0b'
-    context.font = '800 14px sans-serif'
-    context.textAlign = 'center'
-    context.fillText(initials, 92, y + 42)
-    context.textAlign = 'left'
-    context.font = '800 18px sans-serif'
-    context.fillText(String(player.name).slice(0, 25), 128, y + 31)
-    context.fillStyle = '#6b7280'
-    context.font = '14px sans-serif'
-    context.fillText(skillLabel(player.skillLevel), 128, y + 55)
-    context.fillStyle = '#0b0b0b'
-    context.font = '800 18px sans-serif'
-    context.fillText(`${winRate}%`, 570, y + 31)
-    context.font = '14px sans-serif'
-    context.fillStyle = '#6b7280'
-    context.fillText('Win rate', 625, y + 31)
-    context.fillText(`${player.gamesPlayed} games`, 570, y + 55)
-    context.fillText(`${player.wins}-${player.losses}`, 730, y + 55)
-    fillRoundedRect(context, 128, y + 72, 390, 8, 4, 'rgba(16,16,16,0.08)')
-    fillRoundedRect(context, 128, y + 72, Math.max(4, 390 * winRate / 100), 8, 4, '#ffb703')
+    // Row background — real canvas linear gradient (renders correctly,
+    // unlike html2canvas's approximation of CSS linear-gradient)
+    const angleGrad = variant === 'default'
+      ? ctx.createLinearGradient(paddingX, y, paddingX, y + rowHeight) // 180deg
+      : ctx.createLinearGradient(paddingX, y, paddingX + rowWidth, y + rowHeight) // ~135deg
+    angleGrad.addColorStop(0, gradStart)
+    angleGrad.addColorStop(1, gradEnd)
+    fillRoundedRect(ctx, paddingX, y, rowWidth, rowHeight, 16, angleGrad)
+    strokeRoundedRect(ctx, paddingX, y, rowWidth, rowHeight, 16, COLORS.rowBorders[variant], 1)
+
+    let colX = paddingX + rowInsetX
+    const centerY = y + rowHeight / 2
+
+    // Rank
+    const rankCenterX = colX + rankColW / 2
+    if (variant === 'top1' || variant === 'top2' || variant === 'top3') {
+      const medal = variant === 'top1' ? '🥇' : variant === 'top2' ? '🥈' : '🥉'
+      ctx.font = '20px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillText(medal, rankCenterX, centerY + 7)
+    } else {
+      ctx.beginPath()
+      ctx.arc(rankCenterX, centerY, 16, 0, Math.PI * 2)
+      ctx.fillStyle = COLORS.rankBg
+      ctx.fill()
+      ctx.fillStyle = COLORS.muted
+      ctx.font = '800 12px Inter, sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillText(`#${index + 1}`, rankCenterX, centerY + 4)
+    }
+    ctx.textAlign = 'left'
+    colX += rankColW + gap
+
+    // Avatar + name/skill
+    const avatarR = 21
+    const avatarCx = colX + avatarR
+    const avatarGrad = ctx.createLinearGradient(avatarCx - avatarR, centerY - avatarR, avatarCx + avatarR, centerY + avatarR)
+    avatarGrad.addColorStop(0, COLORS.shuttle)
+    avatarGrad.addColorStop(1, COLORS.shuttleDark)
+    ctx.beginPath()
+    ctx.arc(avatarCx, centerY, avatarR, 0, Math.PI * 2)
+    ctx.fillStyle = avatarGrad
+    ctx.fill()
+    const initials = String(player.name).trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase()
+    ctx.fillStyle = COLORS.ink
+    ctx.font = '800 13px Inter, sans-serif'
+    ctx.textAlign = 'center'
+    ctx.fillText(initials, avatarCx, centerY + 4)
+    ctx.textAlign = 'left'
+
+    const textX = colX + avatarR * 2 + 10
+    const textMaxWidth = nameColW - (avatarR * 2 + 10)
+    ctx.fillStyle = COLORS.court
+    ctx.font = '800 14px Inter, sans-serif'
+    ctx.fillText(truncateToWidth(ctx, String(player.name), textMaxWidth), textX, centerY - 3)
+    ctx.fillStyle = COLORS.muted
+    ctx.font = '12px Inter, sans-serif'
+    ctx.fillText(truncateToWidth(ctx, skillLabel(player.skillLevel), textMaxWidth), textX, centerY + 14)
+    colX += nameColW + gap
+
+    // Win rate label + percentage + bar
+    const winRate = player.gamesPlayed ? Math.round((player.wins / player.gamesPlayed) * 100) : 0
+    ctx.fillStyle = COLORS.muted
+    ctx.font = '12px Inter, sans-serif'
+    ctx.fillText('Win rate', colX, centerY - 8)
+    ctx.fillStyle = COLORS.ink
+    ctx.font = '800 13px Inter, sans-serif'
+    ctx.textAlign = 'right'
+    ctx.fillText(`${winRate}%`, colX + rateColW, centerY - 8)
+    ctx.textAlign = 'left'
+
+    fillRoundedRect(ctx, colX, centerY + 2, rateColW, 8, 4, COLORS.barTrack)
+    const barGrad = ctx.createLinearGradient(colX, 0, colX + rateColW, 0)
+    barGrad.addColorStop(0, COLORS.shuttle)
+    barGrad.addColorStop(1, COLORS.shuttleDark)
+    fillRoundedRect(ctx, colX, centerY + 2, Math.max(4, rateColW * winRate / 100), 8, 4, barGrad)
+    colX += rateColW + gap
+
+    // Games / W-L stats, right-aligned pair like .leader-stats
+    const statW = statsColW / 2
+    const stat1Right = colX + statW - 10
+    const stat2Right = colX + statsColW - 2
+    ctx.textAlign = 'right'
+    ctx.fillStyle = COLORS.muted
+    ctx.font = '12px Inter, sans-serif'
+    ctx.fillText('Games', stat1Right, centerY - 6)
+    ctx.fillText('W-L', stat2Right, centerY - 6)
+    ctx.fillStyle = COLORS.court
+    ctx.font = '800 14px Inter, sans-serif'
+    ctx.fillText(String(player.gamesPlayed), stat1Right, centerY + 14)
+    ctx.fillText(`${player.wins}-${player.losses}`, stat2Right, centerY + 14)
+    ctx.textAlign = 'left'
   })
 
   return canvas.toDataURL('image/png')
@@ -118,13 +275,29 @@ export default function LeaderboardPanel({ players, sessionId }) {
     })
 
   const exportImage = async () => {
-    if (!exportRef.current) return
+    if (ranked.length === 0) return
     setExporting(true)
     setExportError('')
     try {
-      setPreviewUrl(createLeaderboardImage(ranked))
+      // Drawn directly on canvas — no DOM screenshot step, so there's
+      // nothing for iOS Safari (or any browser) to render inconsistently.
+      const dataUrl = drawLeaderboardImage(ranked, SORT_DESCRIPTIONS[sortMode])
+
+      if (isIOS()) {
+        // iOS Safari ignores an anchor's download attribute and just
+        // opens the image in a new tab instead of saving it — showing
+        // it in-page lets the user tap-and-hold to save to Photos.
+        setPreviewUrl(dataUrl)
+      } else {
+        const link = document.createElement('a')
+        link.href = dataUrl
+        link.download = `leaderboard${sessionId ? `-${sessionId}` : ''}.png`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+      }
     } catch (error) {
-      console.error('Could not export leaderboard image', error)
+      console.error('Could not create the leaderboard image', error)
       setExportError('Could not create the image on this device. Please try again.')
     } finally {
       setExporting(false)
