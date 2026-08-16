@@ -67,30 +67,9 @@ export default function LeaderboardPanel({ players, sessionId }) {
       const canvas = await html2canvas(exportRef.current, { backgroundColor: null, scale: 2 })
 
       if (isIOS()) {
-        // <a download> is ignored on iOS Safari/PWA, so try the native share
-        // sheet (has a real "Save Image" action) before falling back to
-        // a long-press preview.
+        // <a download> is ignored on iOS Safari/PWA, so show the image
+        // directly and let the user press and hold to save it.
         const dataUrl = canvas.toDataURL('image/png')
-        const filename = `${sessionId || 'stp-session'}-results.png`
-        try {
-          const blob = await new Promise((resolve, reject) => {
-            canvas.toBlob((value) => {
-              if (value) resolve(value)
-              else reject(new Error('Could not create PNG'))
-            }, 'image/png')
-          })
-          const file = new File([blob], filename, { type: 'image/png' })
-
-          if (navigator.canShare?.({ files: [file] })) {
-            await navigator.share({ files: [file], title: filename })
-            return
-          }
-        } catch (err) {
-          if (err?.name === 'AbortError') return // user cancelled the share sheet
-        }
-
-        // Safari can reject share() after the async canvas conversion loses
-        // the original tap activation; the preview still supports Save Image.
         setPreviewUrl(dataUrl)
       } else {
         const link = document.createElement('a')
