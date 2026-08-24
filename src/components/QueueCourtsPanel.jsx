@@ -77,7 +77,6 @@ export default function QueueCourtsPanel({
   const [assignStrategy, setAssignStrategy] = useState('fairRotation')
   const [selectModal, setSelectModal] = useState(null) // { courtId }
   const [selectSearch, setSelectSearch] = useState('')
-  const [selectShowAll, setSelectShowAll] = useState(false)
   const [doneModalCourt, setDoneModalCourt] = useState(null)
   const [tick, setTick] = useState(Date.now())
 
@@ -450,16 +449,11 @@ export default function QueueCourtsPanel({
             <h3>Select player for {selectModal.courtId}</h3>
             <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
               <input placeholder="Search players" value={selectSearch} onChange={(e) => setSelectSearch(e.target.value)} style={{ flex: 1 }} />
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input type="checkbox" checked={selectShowAll} onChange={(e) => setSelectShowAll(e.target.checked)} />
-                <span className="muted" style={{ fontSize: 12 }}>Show all players</span>
-              </label>
             </div>
 
             <div style={{ maxHeight: 300, overflow: 'auto', marginTop: 8 }}>
               {(() => {
-                const listSource = selectShowAll ? players.map((p) => ({ ...p })) : queuedPlayers
-                const filtered = listSource.filter((p) => p.name.toLowerCase().includes(selectSearch.trim().toLowerCase()))
+                const filtered = queuedPlayers.filter((p) => p.name.toLowerCase().includes(selectSearch.trim().toLowerCase()))
                 if (filtered.length === 0) return <div className="muted">No matching players</div>
                 return filtered.map((p) => (
                   <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>

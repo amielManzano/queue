@@ -435,6 +435,7 @@ export default function App() {
             games={state.games}
             courtFee={state.courtFee}
             queue={state.queue}
+            courts={state.courts}
             onAddPlayer={addPlayer}
             onEditSkill={editSkill}
             onRemovePlayer={removePlayer}
