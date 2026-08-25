@@ -6,7 +6,7 @@ import LeaderboardPanel from './components/LeaderboardPanel.jsx'
 import { autoMatch } from './utils/matching.js'
 import { fetchSession, listenToSession, saveSession } from './firebase.js'
 import settingsIcon from './assets/settings.svg'
-import logo from './assets/logo.png'
+import logo1 from './assets/logo1.png'
 
 
 const uid = () => Math.random().toString(36).slice(2, 10)
@@ -403,7 +403,7 @@ export default function App() {
     <div className="app-shell" data-theme="dark">
       <div className="topbar">
         <div className="logo">
-          <img src={logo} alt="STP Badminton Queue" className="logo-icon" />
+          <img src={logo1} alt="STP Badminton Queue" className="logo-icon" />
           <div className="center">
             <h1>Badminton Queue</h1>
             <div className="sub">Skill-based matching · live courts · payment tracking</div>
@@ -454,6 +454,7 @@ export default function App() {
             onRemovePlayer={removePlayer}
             onUpdatePlayer={updatePlayer}
             onAddToQueue={addToQueue}
+            onRemoveFromQueue={removeFromQueue}
           />
         )}
 

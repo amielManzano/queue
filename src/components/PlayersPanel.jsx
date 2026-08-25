@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { skillLabel } from '../utils/matching.js'
 import { computePayments } from '../utils/payment.js'
 
-export default function PlayersPanel({ players, games, courtFee, onAddPlayer, onEditSkill, onRemovePlayer, onAddToQueue, queue, courts = [], onUpdatePlayer }) {
+export default function PlayersPanel({ players, games, courtFee, onAddPlayer, onEditSkill, onRemovePlayer, onAddToQueue, onRemoveFromQueue, queue, courts = [], onUpdatePlayer }) {
   const [name, setName] = useState('')
   const [skill, setSkill] = useState(3)
   const [editingId, setEditingId] = useState(null)
@@ -10,6 +10,7 @@ export default function PlayersPanel({ players, games, courtFee, onAddPlayer, on
   const [editSkill, setEditSkill] = useState(3)
   const [search, setSearch] = useState('')
   const [addModalOpen, setAddModalOpen] = useState(false)
+  const [openActionsId, setOpenActionsId] = useState(null)
 
   const submit = () => {
     if (!name.trim()) return
@@ -91,7 +92,6 @@ export default function PlayersPanel({ players, games, courtFee, onAddPlayer, on
           .map((p) => {
           const isOnCourt = onCourtIds.has(p.id)
           const isQueued = queuedIds.has(p.id)
-          const isUnavailable = isOnCourt || isQueued
           const queueLabel = isOnCourt ? 'On court' : isQueued ? 'In queue' : 'Queue'
 
           return (
@@ -108,23 +108,36 @@ export default function PlayersPanel({ players, games, courtFee, onAddPlayer, on
             <td data-label="Games">{p.gamesPlayed}</td>
             <td data-label="Shuttles">{p.shuttlesUsed ? p.shuttlesUsed.toFixed(1) : '0.0'}</td>
             <td data-label="Payment">₱{p.totalPayment.toFixed(2)}</td>
-            <td className="player-table-actions">
+            <td className="player-table-actions" data-label="Actions">
+                <button
+                  className="btn player-actions-toggle"
+                  onClick={() => setOpenActionsId(openActionsId === p.id ? null : p.id)}
+                  aria-expanded={openActionsId === p.id}
+                >
+                  Actions
+                </button>
+              <div className={`player-actions-menu${openActionsId === p.id ? ' is-open' : ''}`}>
                 <button
                   className="btn secondary small"
-                  disabled={isUnavailable}
-                  onClick={() => onAddToQueue(p.id)}
+                  disabled={isOnCourt}
+                  onClick={() => {
+                    if (isQueued) onRemoveFromQueue?.(p.id)
+                    else onAddToQueue(p.id)
+                    setOpenActionsId(null)
+                  }}
                 >
                   {queueLabel}
                 </button>
                 <button className="btn player-edit-btn" onClick={() => beginEdit(p)}>Edit</button>
                 <button
                   className="btn player-delete-btn"
-                  onClick={() => onRemovePlayer(p.id)}
+                  onClick={() => { onRemovePlayer(p.id); setOpenActionsId(null) }}
                   aria-label={`Delete ${p.name}`}
                   title={`Delete ${p.name}`}
                 >
                   <span aria-hidden="true">×</span> Delete
                 </button>
+              </div>
             </td>
           </tr>
         )})}
@@ -160,7 +173,6 @@ export default function PlayersPanel({ players, games, courtFee, onAddPlayer, on
             </div>
 
             <div className="actions player-edit-actions" style={{ marginTop: 16 }}>
-              <button className="btn" onClick={submit} disabled={!name.trim()}>Add Player</button>
               <button className="btn secondary" onClick={() => setAddModalOpen(false)}>Cancel</button>
             </div>
           </div>

@@ -135,10 +135,6 @@ export default function QueueCourtsPanel({
   return (
     <>
       <div className="panel">
-        <div className="page-heading">
-          <h2>Queue</h2>
-          <span>{queuedPlayers.length} waiting</span>
-        </div>
         <div className="panel">
         <div className="page-heading">
           <h2>Courts</h2>
@@ -435,10 +431,6 @@ export default function QueueCourtsPanel({
                       <span>{skillLabel(p.skillLevel)}</span>
                     </div>
                   </div>
-                </div>
-
-                <div className="card-top-right">
-                  <button className="card-close" onClick={() => onRemoveFromQueue(p.id)}>×</button>
                 </div>
 
                 <div className="leader-stats">
