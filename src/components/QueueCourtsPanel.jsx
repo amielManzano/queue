@@ -135,11 +135,15 @@ export default function QueueCourtsPanel({
   return (
     <>
       <div className="panel">
-        <div className="row" style={{ justifyContent: 'space-between' }}>
-          <h2>Queue ({queuedPlayers.length} waiting)</h2>
+        <div className="page-heading">
+          <h2>Queue</h2>
+          <span>{queuedPlayers.length} waiting</span>
         </div>
         <div className="panel">
-        <h2>Courts</h2>
+        <div className="page-heading">
+          <h2>Courts</h2>
+          <span>{courts.length} available</span>
+        </div>
         <div className="courts-grid">
           {courts.map((c) => (
             <div

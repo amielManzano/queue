@@ -400,7 +400,7 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-theme="dark">
       <div className="topbar">
         <div className="logo">
           <img src={logo} alt="STP Badminton Queue" className="logo-icon" />
@@ -429,16 +429,11 @@ export default function App() {
         ))}
       </div>
 
-      {firebaseError && (
-        <div className="panel" style={{ border: '1px solid #f1c0c0', background: '#fff2f2', color: '#8d2a2a' }}>
-          {firebaseError}
-        </div>
-      )}
-
       <div className="content">
         {tab === 'setup' && (
           <SetupPanel
             connected={connected}
+            firebaseError={firebaseError}
             courtFee={state.courtFee}
             shuttlePrice={state.shuttlePrice}
             numCourts={numCourts}

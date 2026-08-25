@@ -9,12 +9,14 @@ export default function PlayersPanel({ players, games, courtFee, onAddPlayer, on
   const [editName, setEditName] = useState('')
   const [editSkill, setEditSkill] = useState(3)
   const [search, setSearch] = useState('')
+  const [addModalOpen, setAddModalOpen] = useState(false)
 
   const submit = () => {
     if (!name.trim()) return
     onAddPlayer(name.trim(), skill)
     setName('')
     setSkill(3)
+    setAddModalOpen(false)
   }
 
   const beginEdit = (player) => {
@@ -54,38 +56,36 @@ export default function PlayersPanel({ players, games, courtFee, onAddPlayer, on
 
   return (
     <div className="panel">
-      <h2>Players</h2>
-
-      <div className="row add-player-row" style={{ marginBottom: 16 }}>
-        <input
-          className="add-player-name"
-          placeholder="Player name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && submit()}
-        />
-        <select className="add-player-skill" value={skill} onChange={(e) => setSkill(Number(e.target.value))}>
-          {[1, 2, 3, 4, 5].map((lvl) => (
-            <option key={lvl} value={lvl}>
-              {skillLabel(lvl)}
-            </option>
-          ))}
-        </select>
-        <button className="btn add-player-btn" onClick={submit}>+ Add Player</button>
-      </div>
-
-      <div className="row search-player-row" style={{ marginBottom: 12 }}>
-        <input
-          className="search-player-input"
-          placeholder="Search players"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div className="players-toolbar">
+        <div className="players-title-group">
+          <h2>Players</h2>
+          <span>{players.length} registered</span>
+        </div>
+        <div className="players-toolbar-actions">
+          <input
+            className="search-player-input"
+            placeholder="Search directory"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <button className="btn add-player-btn" onClick={() => setAddModalOpen(true)}>+ Add Player</button>
+        </div>
       </div>
 
       {players.length === 0 && <div className="empty-state">No players yet. Add your club members above.</div>}
 
-      <div className="player-grid">
+      <div className="player-table-wrap">
+        <table className="player-table">
+          <thead>
+            <tr>
+              <th scope="col">Player</th>
+              <th scope="col">Games</th>
+              <th scope="col">Shuttles</th>
+              <th scope="col">Payment</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
         {playersWithStats
           .filter((p) => p.name.toLowerCase().includes(search.trim().toLowerCase()))
           .map((p) => {
@@ -95,36 +95,20 @@ export default function PlayersPanel({ players, games, courtFee, onAddPlayer, on
           const queueLabel = isOnCourt ? 'On court' : isQueued ? 'In queue' : 'Queue'
 
           return (
-          <div key={p.id} className="player-card">
-           
-
-            <div className="leader-summary">
+          <tr key={p.id}>
+            <th scope="row" className="player-table-identity">
               <div className="leader-avatar" title={p.name}>
                 <div className="avatar-initials">{p.name.split(' ').map((w) => w[0]).slice(0,2).join('').toUpperCase()}</div>
               </div>
-              <div className="leader-info">
-                <div className="leader-name" onDoubleClick={() => beginEdit(p)}>{p.name}</div>
-                <div className="leader-meta">
-                  <span>{skillLabel(p.skillLevel)}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="leader-stats">
-              <div className="leader-stat">
-                <span className="label">Games</span>
-                <span className="value">{p.gamesPlayed}</span>
-              </div>
-              <div className="leader-stat">
-                <span className="label">Shuttles</span>
-                <span className="value">{p.shuttlesUsed ? p.shuttlesUsed.toFixed(1) : '0.0'}</span>
-              </div>
-              <div className="leader-stat">
-                <span className="label">Payment</span>
-                <span className="value">₱{p.totalPayment.toFixed(2)}</span>
-              </div>
-
-              <div className="actions">
+              <span>
+                <strong className="leader-name" onDoubleClick={() => beginEdit(p)}>{p.name}</strong>
+                <small className="leader-meta">{skillLabel(p.skillLevel)}</small>
+              </span>
+            </th>
+            <td data-label="Games">{p.gamesPlayed}</td>
+            <td data-label="Shuttles">{p.shuttlesUsed ? p.shuttlesUsed.toFixed(1) : '0.0'}</td>
+            <td data-label="Payment">₱{p.totalPayment.toFixed(2)}</td>
+            <td className="player-table-actions">
                 <button
                   className="btn secondary small"
                   disabled={isUnavailable}
@@ -132,13 +116,56 @@ export default function PlayersPanel({ players, games, courtFee, onAddPlayer, on
                 >
                   {queueLabel}
                 </button>
-                <button className="btn gold" onClick={() => beginEdit(p)}>Edit</button>
-                <button className="btn delete" onClick={() => onRemovePlayer(p.id)}>Delete</button>
-              </div>
+                <button className="btn player-edit-btn" onClick={() => beginEdit(p)}>Edit</button>
+                <button
+                  className="btn player-delete-btn"
+                  onClick={() => onRemovePlayer(p.id)}
+                  aria-label={`Delete ${p.name}`}
+                  title={`Delete ${p.name}`}
+                >
+                  <span aria-hidden="true">×</span> Delete
+                </button>
+            </td>
+          </tr>
+        )})}
+          </tbody>
+        </table>
+      </div>
+
+      {addModalOpen && (
+        <div className="modal-backdrop" onClick={() => setAddModalOpen(false)}>
+          <div className="modal player-edit-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Add Player</h3>
+            <p className="player-edit-subtitle">Add a new player to the directory</p>
+
+            <div className="player-edit-fields">
+              <label className="player-edit-field">
+                <span>Name</span>
+                <input
+                  autoFocus
+                  placeholder="Player name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && submit()}
+                />
+              </label>
+              <label className="player-edit-field">
+                <span>Skill level</span>
+                <select value={skill} onChange={(e) => setSkill(Number(e.target.value))}>
+                  {[1, 2, 3, 4, 5].map((lvl) => (
+                    <option key={lvl} value={lvl}>{skillLabel(lvl)}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="actions player-edit-actions" style={{ marginTop: 16 }}>
+              <button className="btn" onClick={submit} disabled={!name.trim()}>Add Player</button>
+              <button className="btn secondary" onClick={() => setAddModalOpen(false)}>Cancel</button>
             </div>
           </div>
-        )})}
-      </div>
+        </div>
+      )}
 
       {editingPlayer && (
         <div className="modal-backdrop" onClick={cancelEdit}>

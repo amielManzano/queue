@@ -1,11 +1,15 @@
 import React, { useState } from 'react'
 
-export default function SetupPanel({ sessionId, connected, onConnect, courtFee, shuttlePrice, numCourts, onUpdateSettings, onClearSession }) {
+export default function SetupPanel({ sessionId, connected, onConnect, firebaseError, courtFee, shuttlePrice, numCourts, onUpdateSettings, onClearSession }) {
   const [idInput, setIdInput] = useState(sessionId || '')
 
   return (
     <div className="panel">
-      <h2>Session</h2>
+      <div className="page-heading">
+        <h2>Session</h2>
+        <span>Configuration</span>
+      </div>
+      {firebaseError && <div className="sync-status" role="status">{firebaseError}</div>}
       {!connected ? (
         <div className="row">
           <input

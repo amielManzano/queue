@@ -6,6 +6,7 @@ import silver1 from "../assets/silver1.png"
 import silver2 from "../assets/silver2.png"
 import bronze1 from "../assets/bronze1.png"
 import bronze2 from "../assets/bronze2.png"
+import logo from "../assets/logo.png"
 
 function isIOS() {
   if (typeof navigator === "undefined") return false;
@@ -76,6 +77,7 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
   const [exporting, setExporting] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [rankBy, setRankBy] = useState("composite");
+  const displayedDate = seasonLabel || defaultSeasonLabel();
 
   const ranked = [...players].sort((a, b) => {
     const wrA = Math.round(getWinRate(a) * 100);
@@ -163,20 +165,7 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
     exportBoard.classList.add("leaderboard-export-desktop");
     exportBoard.style.width = `${desktopWidth}px`;
     exportBoard.style.maxWidth = "none";
-    const exportedRankCards = exportBoard.querySelectorAll(".league-podium-card");
-    exportedRankCards.forEach((card) => {
-      const shadowByRank = {
-        first: "0 0 32px rgba(255,183,3,0.5), 0 20px 40px rgba(255,183,3,0.28)",
-        second: "0 0 32px rgba(185,198,213,0.5), 0 20px 40px rgba(154,164,175,0.28)",
-        third: "0 0 32px rgba(218,127,58,0.5), 0 20px 40px rgba(176,106,52,0.28)",
-      };
-      const rank = ["first", "second", "third"].find((tone) => card.classList.contains(tone));
-      if (rank) {
-        card.style.boxShadow = shadowByRank[rank];
-        const shadowLayer = card.querySelector(".export-rank-shadow");
-        if (shadowLayer) shadowLayer.style.boxShadow = shadowByRank[rank];
-      }
-    });
+    exportBoard.style.border = "2px solid rgba(255,255,255,0.12)";
     exportBoard.style.overflow = "visible";
     exportWrapper.appendChild(exportBoard);
     document.body.appendChild(exportWrapper);
@@ -213,15 +202,18 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
         <div className="leaderboard-grid modern-leaderboard">
           <div className="league-head">
             <div className="league-head-left">
-              <span className="league-head-trophy" aria-hidden="true">🏆</span>
+              <span className="league-head-icon">
+                <img src={logo} alt="STP Badminton" />
+              </span>
               <div>
-                <div className="league-title">Top Players</div>
-                <div className="league-subtitle-text">
-                  The top performers this season
-                </div>
+                <div className="league-title">Leaderboard</div>
               </div>
             </div>
             <div className="league-head-controls">
+              <div className="league-date" aria-label={`Leaderboard date: ${displayedDate}`}>
+                <span>As of</span>
+                <strong>{displayedDate}</strong>
+              </div>
               <label className="league-rank-by">
                 <select
                   value={rankBy}
@@ -239,7 +231,7 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
                 disabled={exporting || ranked.length === 0}
               >
                 <span className="icon" aria-hidden="true">⬇</span>
-                {exporting ? "Exporting..." : "Export as Image"}
+                {exporting ? "Exporting..." : "Export"}
               </button>
             </div>
           </div>
