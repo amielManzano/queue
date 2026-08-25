@@ -182,7 +182,7 @@ export default function App() {
 
   // ── Players ────────────────────────────────────────────────
   const addPlayer = (name, skillLevel) => {
-    const player = { id: uid(), name, skillLevel, wins: 0, losses: 0, gamesPlayed: 0 }
+    const player = { id: uid(), name, skillLevel, wins: 0, losses: 0, gamesPlayed: 0, points: 0 }
     update({ players: [...state.players, player] })
   }
   const editSkill = (id, skillLevel) => {
@@ -332,7 +332,7 @@ export default function App() {
     })
   }
 
-  const doneGame = (courtId, winner, shuttlesUsed) => {
+  const doneGame = (courtId, winner, shuttlesUsed, teamAPoints, teamBPoints) => {
     const court = state.courts.find((c) => c.id === courtId)
     if (!court) return
 
@@ -342,6 +342,8 @@ export default function App() {
       teamA: court.teamA,
       teamB: court.teamB,
       winner,
+      teamAPoints: Math.max(0, Number(teamAPoints) || 0),
+      teamBPoints: Math.max(0, Number(teamBPoints) || 0),
       shuttlesUsed,
       shuttlePrice: state.shuttlePrice,
       timestamp: Date.now()
@@ -349,10 +351,26 @@ export default function App() {
 
     const winners = winner === 'A' ? court.teamA : court.teamB
     const losers = winner === 'A' ? court.teamB : court.teamA
+    const pointsA = Math.max(0, Number(teamAPoints) || 0)
+    const pointsB = Math.max(0, Number(teamBPoints) || 0)
 
     const players = state.players.map((p) => {
-      if (winners.includes(p.id)) return { ...p, wins: p.wins + 1, gamesPlayed: p.gamesPlayed + 1 }
-      if (losers.includes(p.id)) return { ...p, losses: p.losses + 1, gamesPlayed: p.gamesPlayed + 1 }
+      if (winners.includes(p.id)) {
+        return {
+          ...p,
+          wins: p.wins + 1,
+          gamesPlayed: p.gamesPlayed + 1,
+          points: (p.points || 0) + (winner === 'A' ? pointsA : pointsB),
+        }
+      }
+      if (losers.includes(p.id)) {
+        return {
+          ...p,
+          losses: p.losses + 1,
+          gamesPlayed: p.gamesPlayed + 1,
+          points: (p.points || 0) + (winner === 'A' ? pointsB : pointsA),
+        }
+      }
       return p
     })
 

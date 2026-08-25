@@ -4,6 +4,8 @@ import { skillLabel } from '../utils/matching.js'
 function DoneGameModal({ court, playerName, defaultShuttlePrice, onConfirm, onClose }) {
   const [winner, setWinner] = useState('A')
   const [shuttles, setShuttles] = useState(1)
+  const [teamAPoints, setTeamAPoints] = useState(0)
+  const [teamBPoints, setTeamBPoints] = useState(0)
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -31,6 +33,31 @@ function DoneGameModal({ court, playerName, defaultShuttlePrice, onConfirm, onCl
           </div>
         </div>
 
+        <div className="row" style={{ marginBottom: 16 }}>
+          <label>
+            <div className="muted" style={{ marginBottom: 6 }}>Team A points</div>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={teamAPoints}
+              onChange={(e) => setTeamAPoints(Math.max(0, Number(e.target.value)))}
+              style={{ width: 90 }}
+            />
+          </label>
+          <label>
+            <div className="muted" style={{ marginBottom: 6 }}>Team B points</div>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={teamBPoints}
+              onChange={(e) => setTeamBPoints(Math.max(0, Number(e.target.value)))}
+              style={{ width: 90 }}
+            />
+          </label>
+        </div>
+
         <div style={{ marginBottom: 16 }}>
           <div className="muted" style={{ marginBottom: 6 }}>Shuttles used this game</div>
           <input
@@ -48,7 +75,7 @@ function DoneGameModal({ court, playerName, defaultShuttlePrice, onConfirm, onCl
 
         <div className="row" style={{ justifyContent: 'flex-end' }}>
           <button className="btn secondary" onClick={onClose}>Cancel</button>
-          <button className="btn" onClick={() => onConfirm(winner, shuttles)}>Confirm & Clear Court</button>
+          <button className="btn" onClick={() => onConfirm(winner, shuttles, teamAPoints, teamBPoints)}>Confirm & Clear Court</button>
         </div>
       </div>
     </div>
@@ -436,8 +463,8 @@ export default function QueueCourtsPanel({
           playerName={playerName}
           defaultShuttlePrice={shuttlePrice}
           onClose={() => setDoneModalCourt(null)}
-          onConfirm={(winner, shuttles) => {
-            onDoneGame(doneModalCourt.id, winner, shuttles)
+          onConfirm={(winner, shuttles, teamAPoints, teamBPoints) => {
+            onDoneGame(doneModalCourt.id, winner, shuttles, teamAPoints, teamBPoints)
             setDoneModalCourt(null)
           }}
         />

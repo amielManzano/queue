@@ -1,10 +1,12 @@
 import React, { useRef, useState } from "react";
-import html2canvas from "html2canvas";
-import logo from "../assets/logo.png";
+import { toCanvas } from "html-to-image";
+import gold1 from "../assets/gold1.png"
+import gold2 from "../assets/gold2.png"
+import silver1 from "../assets/silver1.png"
+import silver2 from "../assets/silver2.png"
+import bronze1 from "../assets/bronze1.png"
+import bronze2 from "../assets/bronze2.png"
 
-// iOS Safari (including standalone/homescreen PWA mode) does not reliably
-// support triggering downloads via <a download>. iPadOS 13+ also reports
-// as "Mac" in the user agent but has touch points, so we check for that too.
 function isIOS() {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent || "";
@@ -18,9 +20,19 @@ function getWinRate(player) {
   return player.gamesPlayed ? player.wins / player.gamesPlayed : 0;
 }
 
-function sameRankScore(a, b) {
-  if (!a || !b) return false;
-  return a.winRatePct === b.winRatePct && a.wins === b.wins;
+function getRankingKey(player, rankBy) {
+  const winRate = Math.round(getWinRate(player) * 100);
+  const points = player.points || 0;
+
+  if (rankBy === "mostWins") {
+    return [player.wins, winRate, points].join("|");
+  }
+
+  if (rankBy === "winRateMin5") {
+    return [player.gamesPlayed >= 5 ? 1 : 0, winRate, player.wins, points].join("|");
+  }
+
+  return [winRate * 0.7 + player.wins * 2 + player.gamesPlayed * 0.3, player.wins, winRate, points].join("|");
 }
 
 function getInitials(name = "") {
@@ -33,22 +45,30 @@ function getInitials(name = "") {
     .toUpperCase();
 }
 
-function ordinal(rank) {
-  if (rank === 1) return "1st";
-  if (rank === 2) return "2nd";
-  if (rank === 3) return "3rd";
-  return `${rank}th`;
-}
-
-// Win rate at/above this shows the "On Fire" badge on the 1st place card.
-const ON_FIRE_THRESHOLD = 75;
-
 function defaultSeasonLabel() {
   return new Date().toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
   });
+}
+
+const MEDAL_ASSETS = {
+  first: { medal: gold1, leaves: gold2 },
+  second: { medal: silver1, leaves: silver2 },
+  third: { medal: bronze1, leaves: bronze2 },
+};
+
+function RankMedal({ place, tone }) {
+  const assets = MEDAL_ASSETS[tone];
+
+  return (
+    <div className={`rank-medal-wrap ${tone}`}>
+      <span className="rank-medal-glow" aria-hidden="true" />
+      <img src={assets.leaves} alt="" className="rank-medal-leaves" aria-hidden="true" />
+      <img src={assets.medal} alt={`${place} place medal`} className="rank-medal" />
+    </div>
+  );
 }
 
 export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
@@ -60,8 +80,8 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
   const ranked = [...players].sort((a, b) => {
     const wrA = Math.round(getWinRate(a) * 100);
     const wrB = Math.round(getWinRate(b) * 100);
-    const pointsA = a.wins * 10;
-    const pointsB = b.wins * 10;
+    const pointsA = a.points || 0;
+    const pointsB = b.points || 0;
     const compositeA = wrA * 0.7 + a.wins * 2 + a.gamesPlayed * 0.3;
     const compositeB = wrB * 0.7 + b.wins * 2 + b.gamesPlayed * 0.3;
     const eligibleA = a.gamesPlayed >= 5 ? 1 : 0;
@@ -81,77 +101,93 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
     }
 
     if (pointsB !== pointsA) return pointsB - pointsA;
-    return a.name.localeCompare(b.name);
+
+    return 0;
   });
 
-  const rankedWithPosition = ranked.reduce((acc, p) => {
+  let previousRankingKey = null;
+  let currentRank = 0;
+  const rankedWithPosition = ranked.map((p, index) => {
     const winRatePct = p.gamesPlayed
       ? Math.round((p.wins / p.gamesPlayed) * 100)
       : 0;
-    const prev = acc[acc.length - 1];
-    const current = {
+    const rankingKey = getRankingKey(p, rankBy);
+    if (rankingKey !== previousRankingKey) {
+      currentRank += 1;
+      previousRankingKey = rankingKey;
+    }
+
+    return {
       ...p,
       winRatePct,
-      points: p.wins * 10,
-      compositeScore: winRatePct * 0.7 + p.wins * 2 + p.gamesPlayed * 0.3,
-      eligibleForWinRate: p.gamesPlayed >= 5,
+      points: p.points || 0,
+      rank: currentRank,
     };
+  });
 
-    const sameRank = prev
-      ? rankBy === "mostWins"
-        ? prev.wins === current.wins && prev.winRatePct === current.winRatePct
-        : rankBy === "winRateMin5"
-          ? prev.eligibleForWinRate === current.eligibleForWinRate &&
-            prev.winRatePct === current.winRatePct &&
-            prev.wins === current.wins
-          : prev.compositeScore === current.compositeScore &&
-            prev.wins === current.wins &&
-            prev.winRatePct === current.winRatePct
-      : false;
-
-    const rank = prev ? (sameRank ? prev.rank : prev.rank + 1) : 1;
-    acc.push({ ...current, rank });
-    return acc;
-  }, []);
-
-  const groupedRanks = rankedWithPosition.reduce((groups, player) => {
-    const last = groups[groups.length - 1];
-    if (!last || last.rank !== player.rank) {
-      groups.push({ rank: player.rank, players: [player] });
-    } else {
-      last.players.push(player);
-    }
+  const podiumGroups = rankedWithPosition.reduce((groups, player) => {
+    const group = groups.find((entry) => entry.rankNumber === player.rank);
+    if (group) group.players.push(player);
+    else groups.push({ rankNumber: player.rank, players: [player] });
     return groups;
   }, []);
 
-  const rank1 = groupedRanks.find((group) => group.rank === 1) || null;
-  const rank2 = groupedRanks.find((group) => group.rank === 2) || null;
-  const rank3 = groupedRanks.find((group) => group.rank === 3) || null;
-  const podiumGroups = [
-    { key: "rank2", placeLabel: "2nd", group: rank2, tone: "second" },
-    { key: "rank1", placeLabel: "1st", group: rank1, tone: "first" },
-    { key: "rank3", placeLabel: "3rd", group: rank3, tone: "third" },
-  ];
+  const podiumSlots = [2, 1, 3].map((rankNumber) => ({
+    key: `rank${rankNumber}`,
+    tone: rankNumber === 1 ? "first" : rankNumber === 2 ? "second" : "third",
+    rankNumber,
+    players: podiumGroups.find((group) => group.rankNumber === rankNumber)?.players || [],
+  }));
+
   const restPlayers = rankedWithPosition.filter((player) => player.rank > 3);
   const rankingFootnote =
     rankBy === "mostWins"
       ? "Ranked by most wins. Ties are broken by win rate."
       : rankBy === "winRateMin5"
-        ? "Ranked by win rate (minimum 5 games). Players below 5 games are listed after qualified players."
-        : "Ranked by composite score (win rate + wins + activity).";
+        ? "Ranked by win rate (minimum 5 games). Points break ties."
+        : "Ranked by composite score. Points break ties.";
 
   const exportImage = async () => {
     if (!exportRef.current) return;
     setExporting(true);
+    const exportElement = exportRef.current;
+    const desktopWidth = window.innerWidth >= 900
+      ? Math.min(1100, Math.max(320, window.innerWidth - 56))
+      : 1100;
+    const exportWrapper = document.createElement("div");
+    const exportBoard = exportElement.cloneNode(true);
+    exportWrapper.style.width = `${desktopWidth + 72}px`;
+    exportWrapper.style.padding = "36px";
+    exportWrapper.style.background = "transparent";
+    exportWrapper.style.boxSizing = "border-box";
+    exportBoard.classList.add("leaderboard-export-desktop");
+    exportBoard.style.width = `${desktopWidth}px`;
+    exportBoard.style.maxWidth = "none";
+    const exportedRankCards = exportBoard.querySelectorAll(".league-podium-card");
+    exportedRankCards.forEach((card) => {
+      const shadowByRank = {
+        first: "0 0 32px rgba(255,183,3,0.5), 0 20px 40px rgba(255,183,3,0.28)",
+        second: "0 0 32px rgba(185,198,213,0.5), 0 20px 40px rgba(154,164,175,0.28)",
+        third: "0 0 32px rgba(218,127,58,0.5), 0 20px 40px rgba(176,106,52,0.28)",
+      };
+      const rank = ["first", "second", "third"].find((tone) => card.classList.contains(tone));
+      if (rank) {
+        card.style.boxShadow = shadowByRank[rank];
+        const shadowLayer = card.querySelector(".export-rank-shadow");
+        if (shadowLayer) shadowLayer.style.boxShadow = shadowByRank[rank];
+      }
+    });
+    exportBoard.style.overflow = "visible";
+    exportWrapper.appendChild(exportBoard);
+    document.body.appendChild(exportWrapper);
     try {
-      const canvas = await html2canvas(exportRef.current, {
-        backgroundColor: null,
-        scale: 2,
+      const canvas = await toCanvas(exportWrapper, {
+        pixelRatio: 2,
+        backgroundColor: "transparent",
+        cacheBust: true,
       });
 
       if (isIOS()) {
-        // Downloads don't work reliably on iOS Safari / homescreen PWAs.
-        // Show the image so the user can long-press → Save Image instead.
         const dataUrl = canvas.toDataURL("image/png");
         setPreviewUrl(dataUrl);
       } else {
@@ -161,40 +197,38 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
         link.click();
       }
     } finally {
+      exportWrapper.remove();
       setExporting(false);
     }
   };
 
   return (
-    <div className="panel" ref={exportRef} style={{ position: "relative" }}>
+    <div className="panel league-board" ref={exportRef} style={{ position: "relative" }}>
       {ranked.length === 0 ? (
         <div className="empty-state">
           No completed games yet. Results appear here once games are marked
           done.
         </div>
       ) : (
-        <div className="leaderboard-grid modern-leaderboard league-board">
+        <div className="leaderboard-grid modern-leaderboard">
           <div className="league-head">
             <div className="league-head-left">
-              <div className="league-head-icon">
-                <img src={logo} alt="STP logo" />
-              </div>
+              <span className="league-head-trophy" aria-hidden="true">🏆</span>
               <div>
-                <div className="league-title">Leaderboard</div>
-                <div className="league-date">
-                  {seasonLabel || defaultSeasonLabel()}
+                <div className="league-title">Top Players</div>
+                <div className="league-subtitle-text">
+                  The top performers this season
                 </div>
               </div>
             </div>
             <div className="league-head-controls">
               <label className="league-rank-by">
-                <span>Rank by</span>
                 <select
                   value={rankBy}
                   onChange={(e) => setRankBy(e.target.value)}
                 >
                   <option value="composite">Composite Score</option>
-                  <option value="winRateMin5">Winrate (min. 5 games)</option>
+                  <option value="winRateMin5">Win rate (min. games)</option>
                   <option value="mostWins">Most Wins</option>
                 </select>
               </label>
@@ -204,94 +238,79 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
                 onClick={exportImage}
                 disabled={exporting || ranked.length === 0}
               >
-                <span className="icon" aria-hidden="true">
-                  ⬇
-                </span>
-                {exporting ? "Exporting..." : "Export"}
+                <span className="icon" aria-hidden="true">⬇</span>
+                {exporting ? "Exporting..." : "Export as Image"}
               </button>
             </div>
           </div>
 
           <div className="league-podium">
-            {podiumGroups.map((slot) => {
-              const group = slot.group;
-              const names = group
-                ? group.players.map((p) => p.name).join(", ")
-                : "No player yet";
-              const topPlayer = group?.players[0];
-              const rate = topPlayer ? `${topPlayer.winRatePct}%` : "--";
-              const points = topPlayer ? topPlayer.points : 0;
-              const firstPlayer = group?.players[0];
-              const tieCount =
-                group && group.players.length > 1
-                  ? group.players.length - 1
-                  : 0;
-
-              const isOnFire =
-                slot.tone === "first" &&
-                topPlayer &&
-                topPlayer.winRatePct >= ON_FIRE_THRESHOLD;
+            {podiumSlots.map((slot) => {
+              const playersInGroup = slot.players;
+              const p = playersInGroup[0] || null;
 
               return (
                 <article
                   key={slot.key}
-                  className={`league-podium-card ${slot.tone} ${group ? "" : "empty"}`}
+                  className={`league-podium-card ${slot.tone} ${p ? "" : "empty"}`}
                 >
-                  {slot.tone === "first" && (
-                    <span className="league-podium-crown" aria-hidden="true">
-                      👑
-                    </span>
-                  )}
+                  <span className={`export-rank-shadow ${slot.tone}`} aria-hidden="true" />
                   <div className="league-podium-top">
-                    <span className="league-laurel" aria-hidden="true">
-                      🌿
-                    </span>
-                    <span className="league-podium-place">
-                      {slot.placeLabel}
-                    </span>
-                    <span
-                      className="league-laurel"
-                      aria-hidden="true"
-                      style={{ transform: "scaleX(-1)" }}
-                    >
-                      🌿
-                    </span>
+                    <RankMedal place={slot.rankNumber} tone={slot.tone} />
                   </div>
+
                   <div className="league-podium-body">
-                    <div className="league-avatar-wrap">
-                      {group &&
-                        group.players.map(({ name }, index) => {
-                          return (
-                            <div
-                              key={index}
-                              className="league-avatar"
-                              title={name || ""}
-                            >
-                              {getInitials(name)}
-                            </div>
-                          );
-                        })}
+                    <div className={`league-podium-player ${playersInGroup.length > 1 ? "tied" : ""}`}>
+                      <div className="league-avatar-stack">
+                        {playersInGroup.map((groupPlayer, index) => (
+                          <div
+                            key={groupPlayer.id}
+                            className={`league-avatar ${slot.tone}`}
+                            style={{ zIndex: playersInGroup.length - index }}
+                          >
+                            {groupPlayer.photoUrl ? (
+                              <img src={groupPlayer.photoUrl} alt={groupPlayer.name} />
+                            ) : (
+                              getInitials(groupPlayer.name)
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="league-podium-player-info">
+                        <div className="league-player-name">
+                          {p ? playersInGroup.map((groupPlayer) => groupPlayer.name).join(", ") : "No player yet"}
+                        </div>
+                        {p?.skill && (
+                          <div className="league-player-skill">{p.skill}</div>
+                        )}
+                      </div>
                     </div>
-                    <div className="league-player-name">{names}</div>
+
                     <div className="league-top-stats">
                       <div>
-                        <strong>{topPlayer?.wins ?? 0}</strong>
-                        <span>Wins</span>
-                      </div>
-                      <div>
-                        <strong>{topPlayer?.losses ?? 0}</strong>
-                        <span>Losses</span>
-                      </div>
-                      <div>
-                        <strong>{rate}</strong>
                         <span>Win Rate</span>
+                        <strong>{p ? `${p.winRatePct}%` : "--"}</strong>
+                      </div>
+                      <div>
+                        <span>Games</span>
+                        <strong>{p?.gamesPlayed ?? 0}</strong>
+                      </div>
+                      <div>
+                        <span>W-L</span>
+                        <strong>{p ? `${p.wins}-${p.losses}` : "--"}</strong>
+                      </div>
+                      <div>
+                        <span>Points</span>
+                        <strong>{p?.points ?? 0}</strong>
                       </div>
                     </div>
-                    {group && group.players.length > 1 && (
-                      <div className="league-tie-note">
-                        {group.players.length}-way tie
-                      </div>
-                    )}
+
+                    <div className="league-podium-bar">
+                      <div
+                        className={`league-podium-bar-fill ${slot.tone}`}
+                        style={{ width: `${p?.winRatePct ?? 0}%` }}
+                      />
+                    </div>
                   </div>
                 </article>
               );
@@ -303,17 +322,15 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
               <div className="league-table-head">
                 <span>Rank</span>
                 <span>Player</span>
-                <span>Games</span>
-                <span>Wins</span>
-                <span>Losses</span>
                 <span>Win Rate</span>
+                <span>Games</span>
+                <span>W-L</span>
+                <span>Points</span>
               </div>
               <div className="league-table-body">
                 {restPlayers.map((player) => (
                   <div key={player.id} className="league-table-row">
-                    <div className="league-cell rank">
-                      {ordinal(player.rank)}
-                    </div>
+                    <div className="league-cell rank">#{player.rank}</div>
                     <div className="league-cell player">
                       <span className="league-row-avatar">
                         {player.photoUrl ? (
@@ -322,12 +339,29 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
                           getInitials(player.name)
                         )}
                       </span>
-                      <span className="league-row-name">{player.name}</span>
+                      <span className="league-row-name-wrap">
+                        <span className="league-row-name">{player.name}</span>
+                        {player.skill && (
+                          <span className="league-row-skill">{player.skill}</span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="league-cell winrate">
+                      <span className="league-winrate-pct">
+                        {player.winRatePct}%
+                      </span>
+                      <span className="league-winrate-bar">
+                        <span
+                          className="league-winrate-bar-fill"
+                          style={{ width: `${player.winRatePct}%` }}
+                        />
+                      </span>
                     </div>
                     <div className="league-cell">{player.gamesPlayed}</div>
-                    <div className="league-cell win">{player.wins}</div>
-                    <div className="league-cell loss">{player.losses}</div>
-                    <div className="league-cell">{player.winRatePct}%</div>
+                    <div className="league-cell wl">
+                      {player.wins}-{player.losses}
+                    </div>
+                    <div className="league-cell points">{player.points}</div>
                   </div>
                 ))}
               </div>
@@ -354,15 +388,9 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
           }}
         >
           <div
-            style={{
-              color: "#fff",
-              marginBottom: 12,
-              fontSize: 15,
-              textAlign: "center",
-            }}
+            style={{ color: "#fff", marginBottom: 12, fontSize: 15, textAlign: "center" }}
           >
-            Tap and hold the image, then choose "Save Image" — tap anywhere else
-            to close
+            Tap and hold the image, then choose "Save Image" — tap anywhere else to close
           </div>
           <img
             src={previewUrl}
@@ -370,11 +398,7 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
             style={{ maxWidth: "100%", maxHeight: "75vh", borderRadius: 8 }}
             onClick={(e) => e.stopPropagation()}
           />
-          <button
-            className="btn"
-            style={{ marginTop: 16 }}
-            onClick={() => setPreviewUrl(null)}
-          >
+          <button className="btn" style={{ marginTop: 16 }} onClick={() => setPreviewUrl(null)}>
             Close
           </button>
         </div>

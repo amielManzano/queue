@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 230">
+<defs><linearGradient id="g" x2="0" y2="1"><stop stop-color="#fff"/><stop offset=".42" stop-color="#dce2e9"/><stop offset="1" stop-color="#737e8b"/></linearGradient></defs>
+<g fill="none" stroke="#b9c1ca" stroke-width="7" stroke-linecap="round"><path d="M58 138C24 158 20 207 58 236"/><path d="M202 138c34 20 38 69 0 98"/></g><g fill="#cbd1d8" stroke="#737e8b" stroke-width="1.5"><path d="M48 153c-16-9-22-6-24 1 10 7 18 7 24-1Z"/><path d="M35 169c-16-5-22 0-22 7 11 4 18 1 22-7Z"/><path d="M29 188c-15 0-20 6-17 12 10 1 16-3 17-12Z"/><path d="M32 208c-13 5-16 12-11 17 9-2 13-8 11-17Z"/><path d="M44 225c-9 9-9 16-3 19 7-5 8-11 3-19Z"/><path d="M212 153c16-9 22-6 24 1-10 7-18 7-24-1Z"/><path d="M225 169c16-5 22 0 22 7-11 4-18 1-22-7Z"/><path d="M231 188c15 0 20 6 17 12-10 1-16-3-17-12Z"/><path d="M228 208c13 5 16 12 11 17-9-2-13-8-11-17Z"/><path d="M216 225c9 9 9 16 3 19-7-5-8-11-3-19Z"/></g>
+<g fill="none" stroke="#ffffff" stroke-width="1.5" opacity=".8"><path d="M25 154l22 1M14 176l21-5M14 193l16-5M22 211l12-5M41 227l5-8M235 154l-22 1M246 176l-21-5M246 193l-16-5M238 211l-12-5M219 227l-5-8"/></g>
+<path fill="url(#g)" stroke="#69737f" stroke-width="5" d="M130 12l69 40v80l-69 40-69-40V52z"/>
+<path fill="none" stroke="#fff" stroke-width="6" d="M130 29l54 31v64l-54 31-54-31V60z"/>
+<text x="130" y="122" text-anchor="middle" font-family="Arial,sans-serif" font-size="72" font-weight="900" fill="#303944">2</text></svg>
