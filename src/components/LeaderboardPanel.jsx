@@ -210,6 +210,8 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
         }
         if (image.decode) await image.decode().catch(() => {});
       }));
+      if (frameDocument.fonts?.ready) await frameDocument.fonts.ready;
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     }
 
     const exportShadows = {
