@@ -3,17 +3,31 @@ import SetupPanel from './components/SetupPanel.jsx'
 import PlayersPanel from './components/PlayersPanel.jsx'
 import QueueCourtsPanel from './components/QueueCourtsPanel.jsx'
 import LeaderboardPanel from './components/LeaderboardPanel.jsx'
+import MatchHistoryPanel from './components/MatchHistoryPanel.jsx'
+import LoginPanel from './components/LoginPanel.jsx'
+import ClubsPanel from './components/ClubsPanel.jsx'
 import { autoMatch } from './utils/matching.js'
-import { fetchSession, listenToSession, saveSession } from './firebase.js'
+import {
+  fetchSession,
+  listenToSession,
+  saveSession,
+  onAuthChange,
+  logout,
+  deleteAccount,
+  isSuperAdmin,
+  getUserProfile,
+  claimAccessCodeForUser,
+  takePendingSignupCode
+} from './firebase.js'
 import settingsIcon from './assets/settings.svg'
 import logo1 from './assets/logo1.png'
 
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 
-// Single shared session for everyone using the app.
-const SESSION_ID = 'stp-shared-session'
-const STORAGE_KEY = 'stp-session-data'
+// Each signed-in user gets exactly one private session, keyed by their own
+// uid, so different accounts can never see or overwrite each other's data.
+const storageKey = (userId) => `stp-session-data:${userId}`
 
 function makeCourts(n, existing = []) {
   return Array.from({ length: n }, (_, i) => {
@@ -62,6 +76,11 @@ function hasRealData(data) {
 }
 
 export default function App() {
+  const [user, setUser] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [authChecking, setAuthChecking] = useState(false)
+  const [authError, setAuthError] = useState('')
+  const [isAdmin, setIsAdmin] = useState(false)
   const [tab, setTab] = useState('players')
   const [connected, setConnected] = useState(false)
   const [firebaseError, setFirebaseError] = useState('')
@@ -69,17 +88,79 @@ export default function App() {
   const [pendingMatch, setPendingMatch] = useState(null)
   const skipNextSave = useRef(false)
 
+  // The ONLY place allowed to grant access: any successful Firebase sign-in
+  // (Google or email/password) flips auth state immediately, so we must
+  // fully verify — profile exists, or a pending signup code redeems clean —
+  // before ever setting `user`, instead of trusting raw auth state.
+  useEffect(() => {
+    const unsubscribe = onAuthChange(async (u) => {
+      if (!u) {
+        setUser(null)
+        setIsAdmin(false)
+        setAuthLoading(false)
+        setAuthChecking(false)
+        return
+      }
+
+      setAuthChecking(true)
+      const pendingCode = takePendingSignupCode()
+
+      try {
+        let profile = await getUserProfile(u.uid)
+
+        if (!profile && pendingCode) {
+          await claimAccessCodeForUser(u, pendingCode)
+          profile = await getUserProfile(u.uid)
+        }
+
+        if (!profile) {
+          const isPasswordAccount = u.providerData.some((p) => p.providerId === 'password')
+          if (isPasswordAccount) {
+            await deleteAccount(u).catch(() => {})
+          } else {
+            await logout().catch(() => {})
+          }
+          setAuthError('No account found for this sign-in. Create an account with a valid access code first.')
+          setUser(null)
+          return
+        }
+
+        setAuthError('')
+        setUser(u)
+        isSuperAdmin(u.uid).then(setIsAdmin).catch(() => setIsAdmin(false))
+      } catch (err) {
+        console.error('Post sign-in verification failed:', err)
+        const isPasswordAccount = u.providerData.some((p) => p.providerId === 'password')
+        if (isPasswordAccount) {
+          await deleteAccount(u).catch(() => {})
+        } else {
+          await logout().catch(() => {})
+        }
+        setAuthError(err.message || 'Sign-in failed. Please try again.')
+        setUser(null)
+      } finally {
+        setAuthLoading(false)
+        setAuthChecking(false)
+      }
+    })
+    return unsubscribe
+  }, [])
+
+  const SESSION_ID = user ? user.uid : null
+
   const saveLocal = (data) => {
+    if (!SESSION_ID) return
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+      localStorage.setItem(storageKey(SESSION_ID), JSON.stringify(data))
     } catch (err) {
       console.warn('Failed to save local session', err)
     }
   }
 
   const loadLocal = () => {
+    if (!SESSION_ID) return null
     try {
-      const raw = localStorage.getItem(STORAGE_KEY)
+      const raw = localStorage.getItem(storageKey(SESSION_ID))
       return raw ? JSON.parse(raw) : null
     } catch (err) {
       return null
@@ -87,8 +168,9 @@ export default function App() {
   }
 
   const clearLocal = () => {
+    if (!SESSION_ID) return
     try {
-      localStorage.removeItem(STORAGE_KEY)
+      localStorage.removeItem(storageKey(SESSION_ID))
     } catch (err) {}
   }
 
@@ -96,7 +178,7 @@ export default function App() {
   // (connected === true), push to Firebase. Guarded so this can never fire
   // before we've resolved local vs. remote on load.
   useEffect(() => {
-    if (!connected) return
+    if (!connected || !SESSION_ID) return
     if (skipNextSave.current) {
       skipNextSave.current = false
       return
@@ -106,18 +188,25 @@ export default function App() {
       setFirebaseError('Live sync unavailable. Working locally.')
     })
     try { saveLocal(state) } catch (e) {}
-  }, [state, connected])
+  }, [state, connected, SESSION_ID])
 
   // Always persist locally on any state change so a refresh keeps data even when offline.
   useEffect(() => {
     try { saveLocal(state) } catch (e) {}
   }, [state])
 
-  // Connect to the one shared session on mount. This runs the whole
-  // reconciliation IN ORDER (pull remote -> decide -> maybe push -> THEN
-  // start listening) so the live listener and the push-effect above can
-  // never race a stale/empty snapshot against good local data.
+  // Connect to the current user's private session whenever they sign in.
+  // This runs the whole reconciliation IN ORDER (pull remote -> decide ->
+  // maybe push -> THEN start listening) so the live listener and the
+  // push-effect above can never race a stale/empty snapshot against good
+  // local data.
   useEffect(() => {
+    if (!SESSION_ID) {
+      setConnected(false)
+      setState(initialState)
+      return
+    }
+
     let unsubscribe = () => {}
 
     ;(async () => {
@@ -166,16 +255,29 @@ export default function App() {
 
     return () => unsubscribe()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [SESSION_ID])
 
   const clearSession = () => {
-    if (!confirm('Clear all session data for everyone? This cannot be undone.')) return
+    if (!SESSION_ID) return
+    if (!confirm('Clear all of your session data? This cannot be undone.')) return
+    // Keep the player roster, but reset their per-session stats since
+    // games/shuttles/payments are all derived from games + gamesPlayed.
+    const resetPlayers = state.players.map((p) => ({ ...p, wins: 0, losses: 0, gamesPlayed: 0 }))
+    const cleared = { ...initialState, players: resetPlayers }
     clearLocal()
-    setState(initialState)
-    saveSession(SESSION_ID, initialState).catch((err) => {
+    setState(cleared)
+    saveSession(SESSION_ID, cleared).catch((err) => {
       console.error('Failed to clear remote session:', err)
       setFirebaseError('Live sync unavailable. Working locally.')
     })
+  }
+
+  const handleLogout = async () => {
+    try {
+      await logout()
+    } catch (err) {
+      console.error('Logout failed:', err)
+    }
   }
 
   const update = (patch) => setState((s) => ({ ...s, ...patch }))
@@ -324,6 +426,10 @@ export default function App() {
   }
 
   // ── Courts ─────────────────────────────────────────────────
+  const renameCourt = (courtId, name) => {
+    update({ courts: state.courts.map((c) => (c.id === courtId ? { ...c, name } : c)) })
+  }
+
   const startGame = (courtId) => {
     update({
       courts: state.courts.map((c) =>
@@ -390,6 +496,11 @@ export default function App() {
     })
   }
 
+  const editGame = (updatedGame) => {
+    const games = state.games.map((game) => (game.id === updatedGame.id ? updatedGame : game))
+    update({ games, players: recalculatePlayerStats(state.players, games) })
+  }
+
   const numCourts = state.numCourts
   const onUpdateSettings = (patch) => {
     if (patch.numCourts) {
@@ -397,6 +508,20 @@ export default function App() {
     } else {
       update(patch)
     }
+  }
+
+  if (authLoading) {
+    return (
+      <div className="app-shell">
+        <div className="content" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+          Loading...
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <LoginPanel onSuccess={() => {}} verifying={authChecking} serverError={authError} />
   }
 
   return (
@@ -412,7 +537,7 @@ export default function App() {
       </div>
 
       <div className="tabs">
-        {['setup', 'players', 'queue', 'leaderboard'].map((t) => (
+        {['setup', 'players', 'queue', 'history', 'leaderboard', ...(isAdmin ? ['clubs'] : [])].map((t) => (
           <button
             key={t}
             className={`tab ${tab === t ? 'active' : ''}`}
@@ -422,6 +547,8 @@ export default function App() {
   <img src={settingsIcon} alt="Settings" className="tab-icon" />
 ) : t === 'queue' ? (
   'Queue & Courts'
+) : t === 'history' ? (
+  'Match History'
 ) : (
   t[0].toUpperCase() + t.slice(1)
 )}
@@ -439,6 +566,8 @@ export default function App() {
             numCourts={numCourts}
             onUpdateSettings={onUpdateSettings}
             onClearSession={clearSession}
+            user={user}
+            onLogout={handleLogout}
           />
         )}
 
@@ -476,6 +605,7 @@ export default function App() {
             onRemovePlayerFromCourt={removePlayerFromCourt}
             onStartGame={startGame}
             onDoneGame={doneGame}
+            onRenameCourt={renameCourt}
           />
         )}
 
@@ -485,10 +615,50 @@ export default function App() {
             sessionId={SESSION_ID}
           />
         )}
+
+        {tab === 'history' && (
+          <MatchHistoryPanel
+            games={state.games}
+            players={state.players}
+            onEditGame={editGame}
+          />
+        )}
+
+        {tab === 'clubs' && isAdmin && <ClubsPanel />}
       </div>
       <footer>
         <span>© 2026 Aem Manzano · STP Badminton</span>
       </footer>
     </div>
   )
+}
+
+function recalculatePlayerStats(players, games) {
+  const statsByPlayer = Object.fromEntries(
+    players.map((player) => [player.id, { wins: 0, losses: 0, gamesPlayed: 0, points: 0 }])
+  )
+
+  games.forEach((game) => {
+    const teamA = game.teamA || []
+    const teamB = game.teamB || []
+    const pointsA = Math.max(0, Number(game.teamAPoints) || 0)
+    const pointsB = Math.max(0, Number(game.teamBPoints) || 0)
+
+    teamA.forEach((playerId) => {
+      if (!statsByPlayer[playerId]) return
+      statsByPlayer[playerId].gamesPlayed += 1
+      statsByPlayer[playerId].points += pointsA
+      if (game.winner === 'A') statsByPlayer[playerId].wins += 1
+      else statsByPlayer[playerId].losses += 1
+    })
+    teamB.forEach((playerId) => {
+      if (!statsByPlayer[playerId]) return
+      statsByPlayer[playerId].gamesPlayed += 1
+      statsByPlayer[playerId].points += pointsB
+      if (game.winner === 'B') statsByPlayer[playerId].wins += 1
+      else statsByPlayer[playerId].losses += 1
+    })
+  })
+
+  return players.map((player) => ({ ...player, ...statsByPlayer[player.id] }))
 }

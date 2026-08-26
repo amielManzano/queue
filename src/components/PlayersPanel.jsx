@@ -100,7 +100,7 @@ export default function PlayersPanel({ players, games, courtFee, onAddPlayer, on
               <div className="leader-avatar" title={p.name}>
                 <div className="avatar-initials">{p.name.split(' ').map((w) => w[0]).slice(0,2).join('').toUpperCase()}</div>
               </div>
-              <span>
+              <span className="player-identity-content">
                 <strong className="leader-name" onDoubleClick={() => beginEdit(p)}>{p.name}</strong>
                 <small className="leader-meta">{skillLabel(p.skillLevel)}</small>
               </span>
@@ -174,6 +174,7 @@ export default function PlayersPanel({ players, games, courtFee, onAddPlayer, on
 
             <div className="actions player-edit-actions" style={{ marginTop: 16 }}>
               <button className="btn secondary" onClick={() => setAddModalOpen(false)}>Cancel</button>
+              <button className="btn" onClick={submit}>Add</button>
             </div>
           </div>
         </div>

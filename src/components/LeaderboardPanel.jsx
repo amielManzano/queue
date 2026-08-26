@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { toCanvas } from "html-to-image";
+import domtoimage from "dom-to-image-more";
 import gold1 from "../assets/gold1.png"
 import gold2 from "../assets/gold2.png"
 import silver1 from "../assets/silver1.png"
@@ -76,10 +76,11 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
   const exportRef = useRef(null);
   const [exporting, setExporting] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
+  const [exportError, setExportError] = useState('');
   const [rankBy, setRankBy] = useState("composite");
   const displayedDate = seasonLabel || defaultSeasonLabel();
 
-  const ranked = [...players].sort((a, b) => {
+  const ranked = players.filter((player) => player.gamesPlayed > 0).sort((a, b) => {
     const wrA = Math.round(getWinRate(a) * 100);
     const wrB = Math.round(getWinRate(b) * 100);
     const pointsA = a.points || 0;
@@ -152,28 +153,77 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
   const exportImage = async () => {
     if (!exportRef.current) return;
     setExporting(true);
+    setExportError('');
     const exportElement = exportRef.current;
-    const desktopWidth = window.innerWidth >= 900
-      ? Math.min(1100, Math.max(320, window.innerWidth - 56))
-      : 1100;
-    const exportWrapper = document.createElement("div");
+    const desktopWidth = 1100;
+    const exportFrame = document.createElement("iframe");
+    exportFrame.style.position = "fixed";
+    exportFrame.style.left = "-10000px";
+    exportFrame.style.top = "0";
+    exportFrame.style.width = "1200px";
+    exportFrame.style.height = "1000px";
+    exportFrame.style.border = "0";
+    exportFrame.setAttribute("aria-hidden", "true");
+    document.body.appendChild(exportFrame);
+
+    const frameDocument = exportFrame.contentDocument;
+    frameDocument.open();
+    frameDocument.write("<!doctype html><html><head></head><body></body></html>");
+    frameDocument.close();
+    document.querySelectorAll("style, link[rel='stylesheet']").forEach((styleNode) => {
+      frameDocument.head.appendChild(styleNode.cloneNode(true));
+    });
+    await Promise.all(Array.from(frameDocument.querySelectorAll("link[rel='stylesheet']")).map((link) => (
+      link.sheet ? Promise.resolve() : new Promise((resolve) => {
+        link.addEventListener("load", resolve, { once: true });
+        link.addEventListener("error", resolve, { once: true });
+      })
+    )));
+
+    const exportWrapper = frameDocument.createElement("div");
     const exportBoard = exportElement.cloneNode(true);
+    exportWrapper.className = "app-shell";
+    exportWrapper.dataset.theme = "dark";
     exportWrapper.style.width = `${desktopWidth + 72}px`;
     exportWrapper.style.padding = "36px";
-    exportWrapper.style.background = "transparent";
+    exportWrapper.style.background = "#0b0d10";
     exportWrapper.style.boxSizing = "border-box";
+    exportWrapper.style.position = "fixed";
+    exportWrapper.style.left = "-10000px";
+    exportWrapper.style.top = "0";
+    exportWrapper.style.pointerEvents = "none";
     exportBoard.classList.add("leaderboard-export-desktop");
     exportBoard.style.width = `${desktopWidth}px`;
     exportBoard.style.maxWidth = "none";
     exportBoard.style.border = "2px solid rgba(255,255,255,0.12)";
     exportBoard.style.overflow = "visible";
     exportWrapper.appendChild(exportBoard);
-    document.body.appendChild(exportWrapper);
+    frameDocument.body.appendChild(exportWrapper);
+    if (frameDocument.fonts?.ready) await frameDocument.fonts.ready;
+
+    const exportShadows = {
+      first: {
+        boxShadow: "0 0 0 1px rgba(255,183,3,0.55), 0 0 18px rgba(255,183,3,0.16), 0 12px 24px rgba(255,183,3,0.14)"
+      },
+      second: {
+        boxShadow: "0 0 0 1px rgba(220,228,238,0.28), 0 0 18px rgba(185,198,213,0.16), 0 12px 24px rgba(154,164,175,0.14)"
+      },
+      third: {
+        boxShadow: "0 0 0 1px rgba(236,157,91,0.28), 0 0 18px rgba(218,127,58,0.16), 0 12px 24px rgba(176,106,52,0.14)"
+      }
+    };
+    Object.entries(exportShadows).forEach(([tone, styles]) => {
+      exportBoard.querySelectorAll(`.league-podium-card.${tone}`).forEach((card) => {
+        card.style.boxShadow = styles.boxShadow;
+      });
+    });
     try {
-      const canvas = await toCanvas(exportWrapper, {
-        pixelRatio: 2,
-        backgroundColor: "transparent",
-        cacheBust: true,
+      const canvas = await domtoimage.toCanvas(exportWrapper, {
+        width: desktopWidth + 72,
+        height: exportWrapper.scrollHeight,
+        bgcolor: "#0b0d10",
+        windowWidth: 1200,
+        windowHeight: 1000,
       });
 
       if (isIOS()) {
@@ -185,8 +235,11 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
         link.href = canvas.toDataURL("image/png");
         link.click();
       }
+    } catch (err) {
+      console.error('Leaderboard export failed:', err);
+      setExportError('Export failed. Please try again.');
     } finally {
-      exportWrapper.remove();
+      exportFrame.remove();
       setExporting(false);
     }
   };
@@ -234,6 +287,7 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
                 {exporting ? "Exporting..." : "Export"}
               </button>
             </div>
+            {exportError && <div className="export-error" role="alert">{exportError}</div>}
           </div>
 
           <div className="league-podium">
