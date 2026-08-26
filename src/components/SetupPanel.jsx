@@ -55,7 +55,7 @@ export default function SetupPanel({ sessionId, connected, onConnect, firebaseEr
               min="0"
               value={courtFee}
               onChange={(e) => onUpdateSettings({ courtFee: Number(e.target.value) })}
-              style={{ width: 120 }}
+              style={{ width: 120, marginTop: 10 }}
             />
           </label>
           <label>
@@ -65,7 +65,7 @@ export default function SetupPanel({ sessionId, connected, onConnect, firebaseEr
               min="0"
               value={shuttlePrice}
               onChange={(e) => onUpdateSettings({ shuttlePrice: Number(e.target.value) })}
-              style={{ width: 120 }}
+              style={{ width: 120, marginTop: 10 }}
             />
           </label>
           <label>
@@ -76,7 +76,7 @@ export default function SetupPanel({ sessionId, connected, onConnect, firebaseEr
               max="12"
               value={numCourts}
               onChange={(e) => onUpdateSettings({ numCourts: Number(e.target.value) })}
-              style={{ width: 90 }}
+              style={{ width: 90, marginTop: 10 }}
             />
           </label>
         </div>

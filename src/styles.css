@@ -4941,6 +4941,12 @@ footer {
   box-shadow: 0 0 0 1px rgba(236,157,91,0.28), 0 0 18px rgba(218,127,58,0.16), 0 12px 24px rgba(176,106,52,0.14) !important;
 }
 
+.leaderboard-export-desktop .league-podium-card.first .league-player-name,
+.leaderboard-export-desktop .league-podium-card.second .league-player-name,
+.leaderboard-export-desktop .league-podium-card.third .league-player-name {
+  font-weight: 900 !important;
+}
+
 @media (max-width: 560px) {
   .app-shell[data-theme="dark"] .player-table tbody tr:hover th,
   .app-shell[data-theme="dark"] .player-table tbody tr:hover td,

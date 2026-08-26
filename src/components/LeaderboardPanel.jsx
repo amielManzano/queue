@@ -454,7 +454,15 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
           <img
             src={previewUrl}
             alt="Leaderboard export"
-            style={{ maxWidth: "100%", maxHeight: "75vh", borderRadius: 8 }}
+            style={{
+              display: "block",
+              width: "min(100%, 1100px)",
+              height: "auto",
+              maxHeight: "75vh",
+              objectFit: "contain",
+              background: "#0b0d10",
+              borderRadius: 8,
+            }}
             onClick={(e) => e.stopPropagation()}
           />
           <button className="btn" style={{ marginTop: 16 }} onClick={() => setPreviewUrl(null)}>
