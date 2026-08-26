@@ -299,6 +299,7 @@ tbody tr:hover td { background: rgba(0,0,0,0.02); }
   border-radius: var(--radius);
   padding: 14px;
   background: #fbfdfc;
+  margin-bottom: 15px;
 }
 
 .court-card.playing {
@@ -4559,6 +4560,18 @@ footer {
   .match-history-teams { gap: 8px; font-size: 13px; }
   .match-history-teams > span { min-width: 0; flex: 1; }
   .match-edit-fields { grid-template-columns: 1fr; gap: 0; }
+
+  .app-shell[data-theme="dark"] .player-table tbody td[data-label="Games"]::after {
+    content: "";
+  }
+
+  .app-shell[data-theme="dark"] .player-table tbody td[data-label="Shuttles"]::after {
+    content: "";
+  }
+
+  .app-shell[data-theme="dark"] .player-table tbody td[data-label="Payment"]::after {
+    content: "";
+  }
 }
 
 @media (max-width: 600px) {

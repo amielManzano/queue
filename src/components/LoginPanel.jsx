@@ -118,6 +118,7 @@ export default function LoginPanel({
           src={logo1}
           alt="STP Badminton Queue"
           className="login-logo"
+          style={{width: 300, marginBottom: 0}}
         />
         <h1 className="login-title">Badminton Queue</h1>
         <div className="login-sub">
