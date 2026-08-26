@@ -4947,6 +4947,50 @@ footer {
   font-weight: 900 !important;
 }
 
+.leaderboard-export-ios .league-podium-card.first .league-player-name,
+.leaderboard-export-ios .league-podium-card.second .league-player-name,
+.leaderboard-export-ios .league-podium-card.third .league-player-name {
+  display: block !important;
+  width: 100% !important;
+  overflow: visible !important;
+  font-family: 'Archivo Black', sans-serif !important;
+  font-weight: 900 !important;
+  line-height: 1.15 !important;
+  white-space: nowrap !important;
+}
+
+.leaderboard-export-ios .league-top-stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+}
+
+.leaderboard-export-ios .league-top-stats span,
+.leaderboard-export-ios .league-top-stats strong {
+  display: block !important;
+  width: 100% !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+}
+
+.leaderboard-export-ios .league-top-stats span {
+  font-size: 10px !important;
+  line-height: 1.1 !important;
+}
+
+.leaderboard-export-ios .league-top-stats strong {
+  font-family: 'Archivo Black', sans-serif !important;
+  font-size: 17px !important;
+  line-height: 1.1 !important;
+}
+
+.leaderboard-export-ios .league-row-name-wrap,
+.leaderboard-export-ios .league-row-name {
+  max-width: none !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
+}
+
 @media (max-width: 560px) {
   .app-shell[data-theme="dark"] .player-table tbody tr:hover th,
   .app-shell[data-theme="dark"] .player-table tbody tr:hover td,

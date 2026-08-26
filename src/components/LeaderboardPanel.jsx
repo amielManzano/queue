@@ -193,6 +193,7 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
     exportWrapper.style.top = "0";
     exportWrapper.style.pointerEvents = "none";
     exportBoard.classList.add("leaderboard-export-desktop");
+    if (isIOS()) exportBoard.classList.add("leaderboard-export-ios");
     exportBoard.style.width = `${desktopWidth}px`;
     exportBoard.style.maxWidth = "none";
     exportBoard.style.border = "2px solid rgba(255,255,255,0.12)";
