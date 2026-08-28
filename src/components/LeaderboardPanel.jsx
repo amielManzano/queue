@@ -202,6 +202,22 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
     frameDocument.body.appendChild(exportWrapper);
     if (frameDocument.fonts?.ready) await frameDocument.fonts.ready;
     await Promise.all(Array.from(exportWrapper.querySelectorAll("img")).map(async (image) => {
+      if (!image.src || image.src.startsWith("data:")) return;
+      try {
+        const response = await fetch(image.src);
+        if (!response.ok) return;
+        const blob = await response.blob();
+        image.src = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } catch (error) {
+        // Keep the original source as a fallback for remote avatars.
+      }
+    }));
+    await Promise.all(Array.from(exportWrapper.querySelectorAll("img")).map(async (image) => {
       if (!image.complete) {
         await new Promise((resolve) => {
           image.addEventListener("load", resolve, { once: true });
