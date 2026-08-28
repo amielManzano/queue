@@ -248,13 +248,18 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
       });
     });
     try {
-      const canvas = await domtoimage.toCanvas(exportWrapper, {
+      const captureOptions = {
         width: desktopWidth + 72,
         height: exportWrapper.scrollHeight,
         bgcolor: "#0b0d10",
         windowWidth: 1200,
         windowHeight: 1000,
-      });
+      };
+
+      // iOS may finish loading cloned images only after the first canvas pass.
+      // Warm up once, then use the second capture for the visible preview.
+      if (isIOS()) await domtoimage.toCanvas(exportWrapper, captureOptions);
+      const canvas = await domtoimage.toCanvas(exportWrapper, captureOptions);
 
       if (isIOS()) {
         const dataUrl = canvas.toDataURL("image/png");
