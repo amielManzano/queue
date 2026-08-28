@@ -41,7 +41,7 @@ function DoneGameModal({ court, playerName, defaultShuttlePrice, onConfirm, onCl
               min="0"
               step="1"
               value={teamAPoints}
-              onChange={(e) => setTeamAPoints(Math.max(0, Number(e.target.value)))}
+              onChange={(e) => setTeamAPoints(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))}
               style={{ width: 90 }}
             />
           </label>
@@ -52,7 +52,7 @@ function DoneGameModal({ court, playerName, defaultShuttlePrice, onConfirm, onCl
               min="0"
               step="1"
               value={teamBPoints}
-              onChange={(e) => setTeamBPoints(Math.max(0, Number(e.target.value)))}
+              onChange={(e) => setTeamBPoints(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))}
               style={{ width: 90 }}
             />
           </label>
@@ -60,17 +60,8 @@ function DoneGameModal({ court, playerName, defaultShuttlePrice, onConfirm, onCl
 
         <div style={{ marginBottom: 16 }}>
           <div className="muted" style={{ marginBottom: 6 }}>Shuttles used this game</div>
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={shuttles}
-            onChange={(e) => setShuttles(Number(e.target.value))}
-            style={{ width: 90 }}
-          />
-          <span className="muted" style={{ marginLeft: 8 }}>
-            × ₱{defaultShuttlePrice} ÷ 4 players
-          </span>
+          <input type="number" min="0" step="1" value={shuttles} onChange={(e) => setShuttles(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))} style={{ width: 90 }} />
+          <span className="muted" style={{ marginLeft: 8 }}>× ₱{defaultShuttlePrice} ÷ 4 players</span>
         </div>
 
         <div className="row" style={{ justifyContent: 'flex-end' }}>

@@ -198,10 +198,51 @@ export function listenToClubs(callback, onError) {
 }
 
 const SESSIONS = 'sessions'
+const PUBLIC_SESSIONS = 'publicSessions'
 
 export function sessionRef(sessionId) {
   if (!sessionId) throw new Error('sessionId is required for sessionRef()')
   return doc(db, SESSIONS, sessionId)
+}
+
+export function publicSessionRef(token) {
+  if (!token) throw new Error('token is required for publicSessionRef()')
+  return doc(db, PUBLIC_SESSIONS, token)
+}
+
+export async function createPublicSession(token, data) {
+  return setDoc(publicSessionRef(token), {
+    ...data,
+    ownerUid: data.ownerUid,
+    createdAt: serverTimestamp(),
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+  })
+}
+
+export async function savePublicSession(token, data) {
+  return setDoc(publicSessionRef(token), data, { merge: true })
+}
+
+export async function fetchPublicSession(token) {
+  const snap = await getDoc(publicSessionRef(token))
+  if (!snap.exists()) return null
+  const data = snap.data()
+  const expiresAt = data.expiresAt?.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt)
+  return expiresAt && expiresAt.getTime() <= Date.now() ? null : data
+}
+
+export function listenToPublicSession(token, callback, onError) {
+  if (!token) return () => {}
+  return onSnapshot(
+    publicSessionRef(token),
+    (snap) => {
+      if (!snap.exists()) return callback(null)
+      const data = snap.data()
+      const expiresAt = data.expiresAt?.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt)
+      callback(expiresAt && expiresAt.getTime() <= Date.now() ? null : data)
+    },
+    onError
+  )
 }
 
 // One-time read. Returns the doc's data, or null if it doesn't exist yet.

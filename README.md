@@ -18,6 +18,11 @@ list you can export as an image at the end of a session.
    - In the Firebase console, enable **Firestore Database** (start
      in test mode while you build; add real security rules before
      opening this up beyond your club)
+    - The complete rules are in `firestore.rules`, including the
+       `publicSessions` permissions required by QR links. Deploy them with:
+       ```
+       firebase deploy --only firestore:rules
+       ```
 
 3. **Run it**
    ```
@@ -51,6 +56,12 @@ list you can export as an image at the end of a session.
    download a shareable PNG for your group chat.
 
 ## Payment formula
+
+In Settings, choose whether shuttle costs are divided among the four
+players in each game or among every registered player. Four-player mode
+asks for the number of shuttles used. All-player mode applies one shuttle
+price per completed game and divides it across the full player list, so no
+shuttle-count input is needed.
 
 For each player:
 ```

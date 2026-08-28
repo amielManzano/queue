@@ -13,9 +13,11 @@ export function computePayments(players, games, courtFee) {
   }
 
   for (const g of games) {
-    const perPlayerShuttleCost = (g.shuttlesUsed * g.shuttlePrice) / 4
-    const perPlayerShuttles = g.shuttlesUsed / 4
-    for (const pid of [...g.teamA, ...g.teamB]) {
+    const recipients = [...g.teamA, ...g.teamB]
+    const divisor = 4
+    const perPlayerShuttleCost = (g.shuttlesUsed * g.shuttlePrice) / divisor
+    const perPlayerShuttles = g.shuttlesUsed / divisor
+    for (const pid of recipients) {
       shuttleCostByPlayer[pid] = (shuttleCostByPlayer[pid] || 0) + perPlayerShuttleCost
       shuttleCountByPlayer[pid] = (shuttleCountByPlayer[pid] || 0) + perPlayerShuttles
     }

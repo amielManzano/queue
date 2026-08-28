@@ -1,0 +1,56 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /sessions/{sessionId} {
+      allow read, write: if request.auth != null && request.auth.uid == sessionId;
+    }
+
+    // Public QR projections contain only queue, court, and display-name data.
+    // Owners can create and update their projection; anyone can read it until
+    // its Firestore timestamp expires.
+    match /publicSessions/{token} {
+      allow create: if request.auth != null
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.expiresAt > request.time;
+      allow update: if request.auth != null
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.expiresAt == resource.data.expiresAt;
+      allow get: if resource.data.expiresAt > request.time;
+      allow list: if false;
+      allow delete: if false;
+    }
+
+    match /users/{uid} {
+      allow get, write: if request.auth != null && request.auth.uid == uid;
+      allow list: if request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    match /admins/{uid} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    match /clubs/{code} {
+      // Looking up one exact code works before sign-in.
+      allow get: if true;
+      // Listing all clubs requires being a super admin.
+      allow list: if request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+      allow create: if request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+      allow update: if request.auth != null
+        && resource.data.used == false
+        && request.resource.data.used == true
+        && request.resource.data.creatorUid == request.auth.uid;
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

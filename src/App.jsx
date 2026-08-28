@@ -17,7 +17,11 @@ import {
   isSuperAdmin,
   getUserProfile,
   claimAccessCodeForUser,
-  takePendingSignupCode
+  takePendingSignupCode,
+  createPublicSession,
+  savePublicSession,
+  fetchPublicSession,
+  listenToPublicSession
 } from './firebase.js'
 import settingsIcon from './assets/settings.svg'
 import logo1 from './assets/logo1.png'
@@ -28,6 +32,7 @@ const uid = () => Math.random().toString(36).slice(2, 10)
 // Each signed-in user gets exactly one private session, keyed by their own
 // uid, so different accounts can never see or overwrite each other's data.
 const storageKey = (userId) => `stp-session-data:${userId}`
+const publicTokenFromUrl = new URLSearchParams(window.location.search).get('public')
 
 function makeCourts(n, existing = []) {
   return Array.from({ length: n }, (_, i) => {
@@ -86,7 +91,23 @@ export default function App() {
   const [firebaseError, setFirebaseError] = useState('')
   const [state, setState] = useState(initialState)
   const [pendingMatch, setPendingMatch] = useState(null)
+  const [publicSession, setPublicSession] = useState(null)
+  const [publicLoading, setPublicLoading] = useState(Boolean(publicTokenFromUrl))
+  const [publicTab, setPublicTab] = useState('queue')
   const skipNextSave = useRef(false)
+
+  useEffect(() => {
+    if (!publicTokenFromUrl) return
+    return listenToPublicSession(publicTokenFromUrl, (next) => {
+      setPublicSession(next)
+      setPublicLoading(false)
+    }, () => setPublicLoading(false))
+  }, [])
+
+  const publicShareActive = state.shareToken && (!state.shareExpiresAt || state.shareExpiresAt > Date.now())
+  const publicShareUrl = publicShareActive
+    ? `${window.location.origin}${window.location.pathname}?public=${state.shareToken}`
+    : ''
 
   // The ONLY place allowed to grant access: any successful Firebase sign-in
   // (Google or email/password) flips auth state immediately, so we must
@@ -190,6 +211,40 @@ export default function App() {
     try { saveLocal(state) } catch (e) {}
   }, [state, connected, SESSION_ID])
 
+  useEffect(() => {
+    if (!connected || !state.shareToken) return
+    if (state.shareExpiresAt && state.shareExpiresAt <= Date.now()) {
+      update({ shareToken: null, shareExpiresAt: null })
+      return
+    }
+    savePublicSession(state.shareToken, makePublicSession(state, SESSION_ID, user?.uid)).catch((err) => {
+      console.error('Public session update failed:', err)
+    })
+  }, [state, connected, SESSION_ID])
+
+  useEffect(() => {
+    if (!connected || !state.shareToken || state.shareExpiresAt) return
+    fetchPublicSession(state.shareToken).then((publicSession) => {
+      const expiresAt = publicSession?.expiresAt?.toDate
+        ? publicSession.expiresAt.toDate().getTime()
+        : publicSession?.expiresAt ? new Date(publicSession.expiresAt).getTime() : 0
+      update(expiresAt > Date.now()
+        ? { shareExpiresAt: expiresAt }
+        : { shareToken: null, shareExpiresAt: null })
+    }).catch(() => {})
+  }, [state.shareToken, state.shareExpiresAt, connected])
+
+  useEffect(() => {
+    if (!state.shareExpiresAt) return
+    const remaining = state.shareExpiresAt - Date.now()
+    if (remaining <= 0) {
+      update({ shareToken: null, shareExpiresAt: null })
+      return
+    }
+    const timer = window.setTimeout(() => update({ shareToken: null, shareExpiresAt: null }), remaining)
+    return () => window.clearTimeout(timer)
+  }, [state.shareExpiresAt])
+
   // Always persist locally on any state change so a refresh keeps data even when offline.
   useEffect(() => {
     try { saveLocal(state) } catch (e) {}
@@ -281,6 +336,17 @@ export default function App() {
   }
 
   const update = (patch) => setState((s) => ({ ...s, ...patch }))
+
+  const createPublicShare = async () => {
+    const token = crypto.randomUUID?.().replaceAll('-', '').slice(0, 20) || Math.random().toString(36).slice(2, 22)
+    try {
+      await createPublicSession(token, makePublicSession(state, SESSION_ID, user.uid))
+      update({ shareToken: token, shareExpiresAt: Date.now() + 24 * 60 * 60 * 1000 })
+    } catch (err) {
+      console.error('Failed to create public session:', err)
+      setFirebaseError('Could not create the public link. Publish the Firestore rules from README.md, then try again.')
+    }
+  }
 
   // ── Players ────────────────────────────────────────────────
   const addPlayer = (name, skillLevel) => {
@@ -510,6 +576,33 @@ export default function App() {
     }
   }
 
+  if (publicTokenFromUrl) {
+    if (publicLoading) return <div className="public-shell"><div className="public-card">Loading session...</div></div>
+    if (!publicSession) return <div className="public-shell"><div className="public-card"><h1>Session unavailable</h1><p>This session link has expired or is no longer available.</p></div></div>
+
+    const publicProps = {
+      players: publicSession.players || [],
+      queue: publicSession.queue || [],
+      courts: publicSession.courts || [],
+      games: publicSession.games || [],
+      courtFee: publicSession.courtFee || 0,
+      shuttlePrice: publicSession.shuttlePrice || 0,
+    }
+
+    return (
+      <div className="app-shell public-shell-app" data-theme="dark">
+        <div className="topbar"><div className="logo"><img src={logo1} alt="STP Badminton Queue" className="logo-icon" /><div className="center"><h1>Badminton Queue</h1><div className="sub">Skill-based matching · live courts · payment tracking</div></div></div></div>
+        <div className="tabs public-tabs">{[['queue', 'Queue & Courts'], ['history', 'Match History'], ['leaderboard', 'Leaderboard']].map(([key, label]) => <button key={key} className={`tab ${publicTab === key ? 'active' : ''}`} onClick={() => setPublicTab(key)}>{label}</button>)}</div>
+        <div className="content public-content public-readonly">
+          {publicTab === 'queue' && <QueueCourtsPanel {...publicProps} pendingMatch={null} readOnly />}
+          {publicTab === 'history' && <MatchHistoryPanel games={publicProps.games} players={publicProps.players} readOnly />}
+          {publicTab === 'leaderboard' && <LeaderboardPanel players={publicProps.players} sessionId={publicSession.sessionId} />}
+        </div>
+        <footer><span>View only · updates automatically · link active for 24 hours</span></footer>
+      </div>
+    )
+  }
+
   if (authLoading) {
     return (
       <div className="app-shell">
@@ -566,6 +659,8 @@ export default function App() {
             numCourts={numCourts}
             onUpdateSettings={onUpdateSettings}
             onClearSession={clearSession}
+            publicShareUrl={publicShareUrl}
+            onCreatePublicShare={createPublicShare}
             user={user}
             onLogout={handleLogout}
           />
@@ -661,4 +756,26 @@ function recalculatePlayerStats(players, games) {
   })
 
   return players.map((player) => ({ ...player, ...statsByPlayer[player.id] }))
+}
+
+function makePublicSession(data, sessionId, ownerUid) {
+  return {
+    sessionId,
+    ownerUid,
+    sessionName: data.sessionName || sessionId,
+    courtFee: data.courtFee || 0,
+    shuttlePrice: data.shuttlePrice || 0,
+    players: (data.players || []).map(({ id, name, skillLevel, wins, losses, gamesPlayed, points }) => ({
+      id,
+      name,
+      skillLevel,
+      wins: wins || 0,
+      losses: losses || 0,
+      gamesPlayed: gamesPlayed || 0,
+      points: points || 0
+    })),
+    queue: data.queue || [],
+    courts: (data.courts || []).map(({ id, name, status, teamA, teamB }) => ({ id, name, status, teamA, teamB })),
+    games: data.games || []
+  }
 }

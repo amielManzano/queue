@@ -201,16 +201,16 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
     exportWrapper.appendChild(exportBoard);
     frameDocument.body.appendChild(exportWrapper);
     if (frameDocument.fonts?.ready) await frameDocument.fonts.ready;
+    await Promise.all(Array.from(exportWrapper.querySelectorAll("img")).map(async (image) => {
+      if (!image.complete) {
+        await new Promise((resolve) => {
+          image.addEventListener("load", resolve, { once: true });
+          image.addEventListener("error", resolve, { once: true });
+        });
+      }
+      if (image.decode) await image.decode().catch(() => {});
+    }));
     if (isIOS()) {
-      await Promise.all(Array.from(exportWrapper.querySelectorAll("img")).map(async (image) => {
-        if (!image.complete) {
-          await new Promise((resolve) => {
-            image.addEventListener("load", resolve, { once: true });
-            image.addEventListener("error", resolve, { once: true });
-          });
-        }
-        if (image.decode) await image.decode().catch(() => {});
-      }));
       if (frameDocument.fonts?.ready) await frameDocument.fonts.ready;
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     }

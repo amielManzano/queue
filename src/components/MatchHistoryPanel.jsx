@@ -48,22 +48,25 @@ export default function MatchHistoryPanel({ games, players, onEditGame }) {
         <div className="empty-state">No completed matches yet.</div>
       ) : (
         <div className="match-history-list">
-          {orderedGames.map((game) => (
+          {orderedGames.map((game, index) => (
             <article className="match-history-item" key={game.id}>
+              <div className="match-history-index">{String(orderedGames.length - index).padStart(2, '0')}</div>
               <div className="match-history-main">
-                <div className="match-history-date">{formatDate(game.timestamp)} · {game.courtId || 'Court'}</div>
+                <div className="match-history-date"><span>{formatDate(game.timestamp)}</span><span className="match-history-court">{game.courtId || 'Court'}</span></div>
                 <div className="match-history-teams">
                   <span className={game.winner === 'A' ? 'match-winner' : ''}>
+                    {game.winner === 'A' && <small>WINNER</small>}
                     {game.teamA.map(playerName).join(' & ') || 'Team A'}
                   </span>
-                  <strong>{game.teamAPoints ?? 0} - {game.teamBPoints ?? 0}</strong>
+                  <strong className="match-history-score">{game.teamAPoints ?? 0}<b>-</b>{game.teamBPoints ?? 0}</strong>
                   <span className={game.winner === 'B' ? 'match-winner' : ''}>
+                    {game.winner === 'B' && <small>WINNER</small>}
                     {game.teamB.map(playerName).join(' & ') || 'Team B'}
                   </span>
                 </div>
-                <div className="match-history-meta">{game.shuttlesUsed ?? 0} shuttle{game.shuttlesUsed === 1 ? '' : 's'}</div>
+                <div className="match-history-meta">{game.shuttlesUsed ?? 0} shuttle{game.shuttlesUsed === 1 ? '' : 's'} used</div>
               </div>
-              <button className="btn secondary small" onClick={() => openEditor(game)}>Edit</button>
+              <button className="btn secondary small match-history-edit" onClick={() => openEditor(game)}>Edit</button>
             </article>
           ))}
         </div>
