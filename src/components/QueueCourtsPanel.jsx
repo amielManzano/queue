@@ -74,29 +74,35 @@ function DoneGameModal({ court, playerName, defaultShuttlePrice, onConfirm, onCl
 }
 
 export default function QueueCourtsPanel({
-  players,
-  queue,
-  courts,
-  pendingMatch,
+  players = [],
+  queue = [],
+  courts = [],
+  matchQueue = [],
   shuttlePrice,
   onAutoMatch,
-  onClearPending,
+  onCreateManualMatch,
+  onClearMatch,
   onReorderQueue,
   onReorderQueueTo,
   onRemoveFromQueue,
-  onSwapPendingPlayer,
-  onAssignPendingToCourt,
-  onAssignPlayerToCourt,
   onRemovePlayerFromCourt,
+  onAssignMatchToCourt,
+  onAssignPlayerToCourt,
+  onClearCourt,
   onStartGame,
   onDoneGame,
   onSwapCourtPlayer,
   onRenameCourt
 }) {
   const [assignStrategy, setAssignStrategy] = useState('fairRotation')
-  const [selectModal, setSelectModal] = useState(null) // { courtId }
-  const [selectSearch, setSelectSearch] = useState('')
   const [doneModalCourt, setDoneModalCourt] = useState(null)
+  const [selectedCourtByMatch, setSelectedCourtByMatch] = useState({})
+  const [manualMatchOpen, setManualMatchOpen] = useState(false)
+  const [manualPlayerIds, setManualPlayerIds] = useState([])
+  const [manualSearch, setManualSearch] = useState('')
+  const [selectModal, setSelectModal] = useState(null)
+  const [selectSearch, setSelectSearch] = useState('')
+  const [playerSort, setPlayerSort] = useState('name')
   const [tick, setTick] = useState(Date.now())
   const [editingCourtId, setEditingCourtId] = useState(null)
   const [editingCourtName, setEditingCourtName] = useState('')
@@ -106,12 +112,60 @@ export default function QueueCourtsPanel({
     return () => window.clearInterval(timer)
   }, [])
 
+  useEffect(() => {
+    const firstAvailableCourt = courts.find((court) => court.status === 'empty')
+    if (!firstAvailableCourt) return
+    setSelectedCourtByMatch((selected) => {
+      const next = { ...selected }
+      let changed = false
+      matchQueue.forEach((match) => {
+        if (!next[match.id]) {
+          next[match.id] = firstAvailableCourt.id
+          changed = true
+        }
+      })
+      return changed ? next : selected
+    })
+  }, [matchQueue, courts])
+
   const byId = Object.fromEntries(players.map((p) => [p.id, p]))
   const playerName = (id) => byId[id]?.name || '—'
+  const queuePlayerName = (id) => {
+    const name = playerName(id)
+    return name.length > 16 ? `${name.slice(0, 13)}...` : name
+  }
   const queuedPlayers = queue
+    .filter((entry) => byId[entry.id])
     .map((entry) => ({ ...byId[entry.id], queuedAt: entry.queuedAt }))
     .filter(Boolean)
   const emptyCourts = courts.filter((c) => c.status === 'empty')
+  const courtPlayerIds = new Set(courts.flatMap((court) => [...(court.teamA || []), ...(court.teamB || [])]))
+  const availableCourtPlayers = players.filter((player) => !courtPlayerIds.has(player.id))
+  const matchPlayerIds = new Set(matchQueue.flatMap((match) => [...(match.teamA || []), ...(match.teamB || [])]))
+  const autoMatchPlayerCount = queuedPlayers.filter((player) => !courtPlayerIds.has(player.id) && !matchPlayerIds.has(player.id)).length
+  const manualMatchPlayers = players.filter((player) => !courtPlayerIds.has(player.id) && !matchPlayerIds.has(player.id))
+  const activePlayers = players.filter((player) => queue.some((entry) => entry.id === player.id) || courtPlayerIds.has(player.id) || matchPlayerIds.has(player.id))
+  const selectedModalCourt = selectModal ? courts.find((court) => court.id === selectModal.courtId) : null
+  const selectedModalTeam = selectModal?.team === 'A' ? selectedModalCourt?.teamA : selectedModalCourt?.teamB
+  const selectedModalPlayerId = selectedModalTeam?.[selectModal?.idx]
+
+  const openPlayerModal = (courtId, team, idx) => {
+    setSelectSearch('')
+    setSelectModal({ courtId, team, idx })
+  }
+
+  const toggleManualPlayer = (id) => {
+    setManualPlayerIds((selected) => selected.includes(id)
+      ? selected.filter((playerId) => playerId !== id)
+      : selected.length < 4 ? [...selected, id] : selected)
+  }
+
+  const createManualMatch = () => {
+    if (manualPlayerIds.length !== 4) return
+    onCreateManualMatch && onCreateManualMatch(manualPlayerIds)
+    setManualPlayerIds([])
+    setManualMatchOpen(false)
+  }
 
   const formatWaitTime = (queuedAt) => {
     if (!queuedAt) return '—'
@@ -138,6 +192,52 @@ export default function QueueCourtsPanel({
     const seconds = totalSeconds % 60
     return `${minutes}:${String(seconds).padStart(2, '0')}`
   }
+
+  const playerStatus = (playerId) => {
+    const court = courts.find((item) => [...(item.teamA || []), ...(item.teamB || [])].includes(playerId))
+    if (court) {
+      return {
+        label: `${court.name} · ${court.status === 'playing' ? 'Live' : 'Ready'}`,
+        tone: court.status === 'playing' ? 'playing' : 'ready',
+        matchNumber: court.matchNumber
+      }
+    }
+
+    const queuedMatchIndex = matchQueue.findIndex((match) => [...(match.teamA || []), ...(match.teamB || [])].includes(playerId))
+    if (queuedMatchIndex >= 0) {
+      const match = matchQueue[queuedMatchIndex]
+      const team = (match.teamA || []).includes(playerId) ? 'Team A' : 'Team B'
+      return {
+        label: `Match ${queuedMatchIndex + 1} · ${team}`,
+        tone: 'match',
+        matchNumber: queuedMatchIndex + 1,
+        queuedAt: match.queuedAtByPlayer?.[playerId] || match.createdAt
+      }
+    }
+
+    if (queue.some((entry) => entry.id === playerId)) return { label: 'Waiting', tone: 'waiting' }
+    return { label: 'Available', tone: 'available' }
+  }
+
+  const sortedPlayers = [...players].sort((first, second) => {
+    if (playerSort === 'name') return first.name.localeCompare(second.name)
+    if (playerSort === 'level') return (second.skillLevel || 0) - (first.skillLevel || 0)
+    if (playerSort === 'games') return (second.gamesPlayed || 0) - (first.gamesPlayed || 0)
+    if (playerSort === 'wait') {
+      const firstEntry = queue.find((entry) => entry.id === first.id)
+      const secondEntry = queue.find((entry) => entry.id === second.id)
+      const firstWaitStart = firstEntry?.queuedAt || playerStatus(first.id).queuedAt || Date.now()
+      const secondWaitStart = secondEntry?.queuedAt || playerStatus(second.id).queuedAt || Date.now()
+      return firstWaitStart - secondWaitStart
+    }
+    if (playerSort === 'status') {
+      const rank = { playing: 0, ready: 1, match: 2, waiting: 3, available: 4 }
+      return (rank[playerStatus(first.id).tone] ?? 5) - (rank[playerStatus(second.id).tone] ?? 5)
+    }
+    const firstIndex = queue.findIndex((entry) => entry.id === first.id)
+    const secondIndex = queue.findIndex((entry) => entry.id === second.id)
+    return (firstIndex < 0 ? activePlayers.length : firstIndex) - (secondIndex < 0 ? activePlayers.length : secondIndex)
+  })
 
   const startEditingCourtName = (c) => {
     setEditingCourtId(c.id)
@@ -176,9 +276,7 @@ export default function QueueCourtsPanel({
                 if (!data) return
                 try {
                   const payload = JSON.parse(data)
-                  if (payload.type === 'queue') {
-                    onAssignPlayerToCourt && onAssignPlayerToCourt(c.id, payload.id)
-                  } else if (payload.type === 'court') {
+                  if (payload.type === 'court') {
                     if (payload.courtId !== c.id) {
                       // move between courts
                       onRemovePlayerFromCourt && onRemovePlayerFromCourt(payload.courtId, payload.id)
@@ -218,7 +316,7 @@ export default function QueueCourtsPanel({
               <div className="court-surface">
                 <div className="court-players team-a">
                   {Array.from({ length: 2 }).map((_, idx) => {
-                    const id = c.teamA[idx]
+                    const id = (c.teamA || [])[idx]
                     return id ? (
                       <div
                         key={id}
@@ -230,39 +328,26 @@ export default function QueueCourtsPanel({
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <div className="court-avatar">{playerName(id).charAt(0).toUpperCase()}</div>
-                            <div className="court-player-name">{playerName(id)}</div>
+                            <div
+                              className="court-avatar"
+                              onClick={(e) => { e.stopPropagation(); openPlayerModal(c.id, 'A', idx) }}
+                              title="Edit court player"
+                            >{playerName(id).charAt(0).toUpperCase()}</div>
+                            <div className="court-player-name" title={playerName(id)}>{playerName(id)}</div>
                           </div>
                       </div>
                     ) : (
                       <div
                         key={`a-${idx}`}
                         className="court-player empty"
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          const data = e.dataTransfer.getData('text/plain')
-                          if (!data) return
-                          try {
-                            const payload = JSON.parse(data)
-                            if (payload.type === 'queue') {
-                              onAssignPlayerToCourt && onAssignPlayerToCourt(c.id, payload.id, 'A', idx)
-                            } else if (payload.type === 'court') {
-                              if (payload.courtId !== c.id) {
-                                onRemovePlayerFromCourt && onRemovePlayerFromCourt(payload.courtId, payload.id)
-                                onAssignPlayerToCourt && onAssignPlayerToCourt(c.id, payload.id, 'A', idx)
-                              } else {
-                                onSwapCourtPlayer && onSwapCourtPlayer(c.id, payload.id, 'A', idx)
-                              }
-                            }
-                          } catch (err) {}
-                        }}
                       >
                         <div
                           className="court-avatar empty"
-                          onClick={(e) => { e.stopPropagation(); setSelectModal({ courtId: c.id, team: 'A', idx }) }}
-                          style={{ cursor: 'pointer' }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openPlayerModal(c.id, 'A', idx)
+                          }}
+                          title="Add queued player"
                         >+
                         </div>
                       </div>
@@ -274,7 +359,7 @@ export default function QueueCourtsPanel({
 
                 <div className="court-players team-b">
                   {Array.from({ length: 2 }).map((_, idx) => {
-                    const id = c.teamB[idx]
+                    const id = (c.teamB || [])[idx]
                     return id ? (
                       <div
                         key={id}
@@ -286,39 +371,26 @@ export default function QueueCourtsPanel({
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div className="court-player-name">{playerName(id)}</div>
-                          <div className="court-avatar">{playerName(id).charAt(0).toUpperCase()}</div>
+                          <div className="court-player-name" title={playerName(id)}>{playerName(id)}</div>
+                          <div
+                            className="court-avatar"
+                            onClick={(e) => { e.stopPropagation(); openPlayerModal(c.id, 'B', idx) }}
+                            title="Edit court player"
+                          >{playerName(id).charAt(0).toUpperCase()}</div>
                         </div>
                       </div>
                     ) : (
                       <div
                         key={`b-${idx}`}
                         className="court-player empty"
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          const data = e.dataTransfer.getData('text/plain')
-                          if (!data) return
-                          try {
-                            const payload = JSON.parse(data)
-                            if (payload.type === 'queue') {
-                              onAssignPlayerToCourt && onAssignPlayerToCourt(c.id, payload.id, 'B', idx)
-                            } else if (payload.type === 'court') {
-                              if (payload.courtId !== c.id) {
-                                onRemovePlayerFromCourt && onRemovePlayerFromCourt(payload.courtId, payload.id)
-                                onAssignPlayerToCourt && onAssignPlayerToCourt(c.id, payload.id, 'B', idx)
-                              } else {
-                                onSwapCourtPlayer && onSwapCourtPlayer(c.id, payload.id, 'B', idx)
-                              }
-                            }
-                          } catch (err) {}
-                        }}
                       >
                         <div
                           className="court-avatar empty"
-                          onClick={(e) => { e.stopPropagation(); setSelectModal({ courtId: c.id, team: 'B', idx }) }}
-                          style={{ cursor: 'pointer' }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openPlayerModal(c.id, 'B', idx)
+                          }}
+                          title="Add queued player"
                         >+
                         </div>
                       </div>
@@ -329,164 +401,181 @@ export default function QueueCourtsPanel({
 
               <div className="row" style={{ marginTop: 10 }}>
                 {c.status === 'assigned' && (
-                  <button className="btn small" onClick={() => onStartGame(c.id)}>▶ Start Game</button>
+                  <button
+                    className="btn small"
+                    onClick={() => onStartGame(c.id)}
+                    disabled={(c.teamA || []).length + (c.teamB || []).length !== 4}
+                    title={(c.teamA || []).length + (c.teamB || []).length === 4 ? 'Start game' : 'Add four players before starting'}
+                  >
+                    ▶ Start Game
+                  </button>
                 )}
                 {c.status === 'playing' && (
                   <button className="btn gold small" onClick={() => setDoneModalCourt(c)}>✓ Done Game</button>
+                )}
+                {c.status === 'assigned' && ((c.teamA || []).length + (c.teamB || []).length > 0) && (
+                  <button className="btn secondary small" onClick={() => onClearCourt?.(c.id)} title="Return all players to queue">
+                    Clear court
+                  </button>
                 )}
               </div>
             </div>
           ))}
         </div>
 
-        {!pendingMatch && (
-          <div className="row" style={{ marginBottom: 12, alignItems: 'center' }}>
+        <div className="row queue-match-controls" style={{ marginBottom: 12, alignItems: 'center' }}>
             <select value={assignStrategy} onChange={(e) => setAssignStrategy(e.target.value)} style={{ padding: '8px 10px', borderRadius: 10 }}>
               <option value="fairRotation">Fair Rotation — ⭐ Recommended</option>
               <option value="balancedSkill">Balanced Skill</option>
               <option value="random">Random</option>
             </select>
 
-            <button className="btn gold" onClick={() => onAutoMatch && onAutoMatch(assignStrategy)} disabled={queuedPlayers.length < 4}>
+            <button className="btn gold" onClick={() => onAutoMatch && onAutoMatch(assignStrategy)}>
               ⚡ Auto-assign next match
+            </button>
+            <button className="btn secondary" onClick={() => { setManualSearch(''); setManualMatchOpen(true) }}>
+              + Manual match
             </button>
 
             <span className="muted">Choose a matching strategy: Fair Rotation, Balanced Skill, or Random</span>
-          </div>
-        )}
+        </div>
 
-        {pendingMatch && (
-          <div className="court-card playing" style={{ marginBottom: 16 }}>
-            <h3>Proposed Match <span className="muted" style={{ fontWeight: 400 }}>tap a name to swap</span></h3>
-            <div className="team-line">
-              <span>
-                {pendingMatch.teamA.map((id) => (
-                  <span
-                    key={id}
-                    className="player-chip"
-                    style={{ marginRight: 6, cursor: 'pointer' }}
-                    onClick={() => onSwapPendingPlayer('A', id)}
-                  >
+        {matchQueue.length > 0 && (
+          <div className="match-queue">
+            <div className="page-heading">
+              <h2>Match queue</h2>
+              <span>{matchQueue.length} waiting</span>
+            </div>
+            <div className="match-queue-items">
+              {matchQueue.map((match, index) => (
+                <div className="court-card match-queue-card" key={match.id}>
+                <h3 className="match-queue-card-heading">
+                  <span className="match-number">{index + 1}</span>
+                  <span>Match</span>
+                </h3>
+                <div className="match-teams">
+                  <div className="team-line">
+                    <span className="team-label team-a-label">Team A</span>
+                    <div className="team-players">
+                      {match.teamA.map((id) => (
+                        <span key={id} className="player-chip" style={{ marginRight: 6 }}>
                     <div style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
                       <div className="leader-avatar" style={{ width: 28, height: 28, fontSize: 12, borderRadius: 8 }}>
                         {playerName(id).split(' ').map((w) => w[0]).slice(0,2).join('').toUpperCase()}
                       </div>
-                      <div style={{ fontWeight: 700, fontSize: 13 }}>{playerName(id)}</div>
+                      <div style={{ fontWeight: 700, fontSize: 13 }} title={playerName(id)}>{queuePlayerName(id)}</div>
                     </div>
-                  </span>
-                ))}
-              </span>
-            </div>
-            <div className="vs">VS</div>
-            <div className="team-line">
-              <span>
-                {pendingMatch.teamB.map((id) => (
-                  <span
-                    key={id}
-                    className="player-chip"
-                    style={{ marginRight: 6, cursor: 'pointer' }}
-                    onClick={() => onSwapPendingPlayer('B', id)}
-                  >
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="vs">VS</div>
+                  <div className="team-line">
+                    <span className="team-label team-b-label">Team B</span>
+                    <div className="team-players">
+                      {match.teamB.map((id) => (
+                        <span key={id} className="player-chip" style={{ marginRight: 6 }}>
                     <div style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
                       <div className="leader-avatar" style={{ width: 28, height: 28, fontSize: 12, borderRadius: 8 }}>
                         {playerName(id).split(' ').map((w) => w[0]).slice(0,2).join('').toUpperCase()}
                       </div>
-                      <div style={{ fontWeight: 700, fontSize: 13 }}>{playerName(id)}</div>
+                      <div style={{ fontWeight: 700, fontSize: 13 }} title={playerName(id)}>{queuePlayerName(id)}</div>
                     </div>
-                  </span>
-                ))}
-              </span>
-            </div>
-            <div className="row" style={{ marginTop: 12 }}>
-              <select
-                onChange={(e) => {
-                  if (e.target.value) onAssignPendingToCourt(e.target.value)
-                }}
-                defaultValue=""
-                disabled={emptyCourts.length === 0}
-              >
-                <option value="" disabled>
-                  {emptyCourts.length === 0 ? 'No empty court' : 'Assign to court...'}
-                </option>
-                {emptyCourts.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              <button className="btn secondary" onClick={onClearPending}>Cancel match</button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="row match-queue-actions" style={{ marginTop: 12 }}>
+                  <select
+                    value={selectedCourtByMatch[match.id] || ''}
+                    onChange={(e) => setSelectedCourtByMatch({ ...selectedCourtByMatch, [match.id]: e.target.value })}
+                    disabled={emptyCourts.length === 0}
+                  >
+                    <option value="" disabled>
+                      {emptyCourts.length === 0 ? 'No court' : 'Court'}
+                    </option>
+                    {emptyCourts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <button
+                    className="btn"
+                    aria-label="Add match to court"
+                    title="Add match to court"
+                    disabled={!selectedCourtByMatch[match.id]}
+                    onClick={() => {
+                      onAssignMatchToCourt(match.id, selectedCourtByMatch[match.id])
+                      setSelectedCourtByMatch((selected) => {
+                        const next = { ...selected }
+                        delete next[match.id]
+                        return next
+                      })
+                    }}
+                  >
+                    <span aria-hidden="true">+</span>
+                  </button>
+                  <button
+                    className="btn secondary"
+                    aria-label="Return players to queue"
+                    title="Return players to queue"
+                    onClick={() => onClearMatch(match.id)}
+                  >
+                    <span aria-hidden="true">↩</span>
+                  </button>
+                </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
 
-        {queuedPlayers.length === 0 ? (
-          <div className="empty-state">Queue is empty — add players from the Players tab.</div>
-        ) : (
-          <div
-            className="queue-grid"
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault()
-              const data = e.dataTransfer.getData('text/plain')
-              if (!data) return
-              try {
-                const payload = JSON.parse(data)
-                if (payload.type === 'court') {
-                  // dropped from a court -> remove from court and append to queue
-                  onRemovePlayerFromCourt && onRemovePlayerFromCourt(payload.courtId, payload.id)
-                }
-                // if from queue with drag reorder, treat as append
-              } catch (err) {}
-            }}
-          >
-            {queuedPlayers.map((p, i) => (
-              <div
-                className="leader-card queue-card"
-                key={p.id}
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'queue', id: p.id, index: i }))
-                  e.dataTransfer.effectAllowed = 'move'
-                }}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  const data = e.dataTransfer.getData('text/plain')
-                  if (!data) return
-                  try {
-                    const payload = JSON.parse(data)
-                    if (payload.type === 'queue') {
-                      onReorderQueueTo && onReorderQueueTo(payload.id, i)
-                    } else if (payload.type === 'court') {
-                      // move from court to this position in queue
-                      onRemovePlayerFromCourt && onRemovePlayerFromCourt(payload.courtId, payload.id)
-                      setTimeout(() => onReorderQueueTo && onReorderQueueTo(payload.id, i), 50)
-                    }
-                  } catch (err) {}
-                }}
-              >
-                <div className="leader-summary">
-                  <div className="leader-avatar">{p.name.charAt(0).toUpperCase()}</div>
-                  <div className="leader-info">
-                    <div className="leader-name">{p.name}</div>
-                    <div className="leader-meta">
-                      <span>{skillLabel(p.skillLevel)}</span>
+        <div className="player-status-list">
+          <div className="page-heading">
+            <h2>Player queue</h2>
+            <div className="player-queue-heading-meta">
+              <label className="player-queue-sort">
+                <span>Sort</span>
+                <select value={playerSort} onChange={(e) => setPlayerSort(e.target.value)} aria-label="Sort player queue">
+                  <option value="wait">Wait time</option>
+                  <option value="name">Name</option>
+                  <option value="status">Status</option>
+                  <option value="level">Level</option>
+                  <option value="games">Games played</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          {activePlayers.length === 0 ? (
+            <div className="empty-state">No players in the queue yet.</div>
+          ) : (
+            <div className="queue-grid player-status-items">
+              {sortedPlayers.filter((player) => activePlayers.includes(player)).map((player) => {
+                const status = playerStatus(player.id)
+                const queueEntry = queue.find((entry) => entry.id === player.id)
+                const waitStartedAt = queueEntry?.queuedAt || status.queuedAt
+                return (
+                  <div className="player-status-card" key={player.id}>
+                    <div className="player-status-main">
+                      <div className="player-status-avatar">
+                        <div className="leader-avatar">{player.name.charAt(0).toUpperCase()}</div>
+                        <span className={`player-status-text ${status.tone}`} title={status.label}>
+                          {status.tone === 'playing' ? 'LIVE' : status.matchNumber ? `M${status.matchNumber}` : status.tone === 'waiting' ? 'WAIT' : 'AVAILABLE'}
+                        </span>
+                      </div>
+                      <div className="leader-info">
+                        <div className="leader-name">{player.name}</div>
+                        <div className="leader-meta">{skillLabel(player.skillLevel)}</div>
+                      </div>
+                    </div>
+                    <div className="player-status-metrics">
+                      <span><small>Wait</small><strong>{waitStartedAt ? formatWaitTime(waitStartedAt) : '—'}</strong></span>
+                      <span><small>Games</small><strong>{player.gamesPlayed || 0}</strong></span>
                     </div>
                   </div>
-                </div>
-
-                <div className="leader-stats">
-                  <div className="leader-stat">
-                    <span className="label">Wait</span>
-                    <span className="value">{formatWaitTime(p.queuedAt)}</span>
-                  </div>
-                  <div className="leader-stat">
-                    <span className="label">Games</span>
-                    <span className="value">{p.gamesPlayed || 0}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       
@@ -506,35 +595,107 @@ export default function QueueCourtsPanel({
         />
       )}
 
+      {manualMatchOpen && (
+        <div className="modal-backdrop" onClick={() => setManualMatchOpen(false)}>
+          <div className="modal court-player-modal manual-match-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="court-player-modal-heading manual-match-heading">
+              <div>
+                <span className="modal-kicker">Build a match</span>
+                <h3>Manual match</h3>
+                <p className="muted">Choose four available players. The first two form Team A.</p>
+              </div>
+              <span className="manual-match-count">{manualPlayerIds.length}/4</span>
+            </div>
+            <div className="court-player-search">
+              <span aria-hidden="true">⌕</span>
+              <input autoFocus placeholder="Search players" value={manualSearch} onChange={(e) => setManualSearch(e.target.value)} />
+            </div>
+            <div className="court-player-list manual-match-list">
+              {manualMatchPlayers.filter((player) => player.name.toLowerCase().includes(manualSearch.trim().toLowerCase())).map((player) => {
+                const selectionIndex = manualPlayerIds.indexOf(player.id)
+                const team = selectionIndex < 2 ? 'a' : 'b'
+                return (
+                  <div className={`court-player-option manual-match-option${selectionIndex >= 0 ? ` selected team-${team}` : ''}`} key={player.id}>
+                    <div className="court-player-option-info">
+                      <div className="court-player-option-avatar">{player.name.charAt(0).toUpperCase()}</div>
+                      <div>
+                        <div className="court-player-option-name" title={player.name}>{player.name}</div>
+                        <div className="muted court-player-option-skill">{selectionIndex >= 0 ? `Team ${team.toUpperCase()} · Player ${(selectionIndex % 2) + 1}` : skillLabel(player.skillLevel)}</div>
+                      </div>
+                    </div>
+                    <button className={selectionIndex >= 0 ? 'btn secondary small' : 'btn small'} onClick={() => toggleManualPlayer(player.id)}>
+                      {selectionIndex >= 0 ? `${team.toUpperCase()}${(selectionIndex % 2) + 1}` : 'Select'}
+                    </button>
+                  </div>
+                )
+              })}
+              {manualMatchPlayers.filter((player) => player.name.toLowerCase().includes(manualSearch.trim().toLowerCase())).length === 0 && <div className="muted">No available players found.</div>}
+            </div>
+            <div className="actions" style={{ marginTop: 16 }}>
+              <button className="btn secondary" onClick={() => setManualMatchOpen(false)}>Cancel</button>
+              <button className="btn" disabled={manualPlayerIds.length !== 4} onClick={createManualMatch}>Create match</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {selectModal && (
         <div className="modal-backdrop" onClick={() => setSelectModal(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Select player for {selectModal.courtId}</h3>
-            <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input placeholder="Search players" value={selectSearch} onChange={(e) => setSelectSearch(e.target.value)} style={{ flex: 1 }} />
+          <div className="modal court-player-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="court-player-modal-heading">
+              <div>
+                <span className="modal-kicker">Court edit</span>
+                <h3>Select player for {selectModal.courtId}</h3>
+              </div>
+              <button className="modal-close" onClick={() => setSelectModal(null)} aria-label="Close player selector" title="Close">×</button>
             </div>
-
-            <div style={{ maxHeight: 300, overflow: 'auto', marginTop: 8 }}>
+            <div className="court-player-search">
+              <span aria-hidden="true">⌕</span>
+              <input autoFocus placeholder="Search players" value={selectSearch} onChange={(e) => setSelectSearch(e.target.value)} />
+            </div>
+            <div className="court-player-list">
               {(() => {
-                const filtered = queuedPlayers.filter((p) => p.name.toLowerCase().includes(selectSearch.trim().toLowerCase()))
+                const filtered = availableCourtPlayers.filter((player) => player.name.toLowerCase().includes(selectSearch.trim().toLowerCase()))
                 if (filtered.length === 0) return <div className="muted">No matching players</div>
-                return filtered.map((p) => (
-                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <div>
-                      <div style={{ fontWeight: 700 }}>{p.name}</div>
-                      <div className="muted" style={{ fontSize: 12 }}>{skillLabel(p.skillLevel)}</div>
+                return filtered.map((player) => (
+                  <div className="court-player-option" key={player.id}>
+                    <div className="court-player-option-info">
+                      <div className="court-player-option-avatar">{player.name.charAt(0).toUpperCase()}</div>
+                      <div>
+                        <div className="court-player-option-name">{player.name}</div>
+                        <div className="muted court-player-option-skill">{skillLabel(player.skillLevel)}</div>
+                      </div>
                     </div>
-                    <div>
-                      <button className="btn small" onClick={() => { onAssignPlayerToCourt && onAssignPlayerToCourt(selectModal.courtId, p.id, selectModal.team, selectModal.idx); setSelectModal(null) }}>Add</button>
-                    </div>
+                    <button
+                      className="btn small"
+                      onClick={() => {
+                        onAssignPlayerToCourt?.(selectModal.courtId, player.id, selectModal.team, selectModal.idx)
+                        setSelectModal(null)
+                      }}
+                    >
+                      Add
+                    </button>
                   </div>
                 ))
               })()}
             </div>
-            </div>
+            {selectedModalPlayerId && (
+              <div className="court-player-modal-footer">
+                <button
+                  className="btn secondary small court-player-clear"
+                  onClick={() => {
+                    onRemovePlayerFromCourt?.(selectModal.courtId, selectedModalPlayerId)
+                    setSelectModal(null)
+                  }}
+                >
+                  Clear player
+                </button>
+              </div>
+            )}
           </div>
-       
+        </div>
       )}
+
     </>
   )
 }

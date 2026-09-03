@@ -39,13 +39,15 @@ function makeCourts(n, existing = []) {
     const id = `court-${i + 1}`
     const prev = existing.find((c) => c.id === id)
     return (
-      prev || {
-        id,
-        name: `Court ${i + 1}`,
-        status: 'empty', // empty | assigned | playing
-        teamA: [],
-        teamB: []
-      }
+      prev
+        ? { ...prev, teamA: prev.teamA || [], teamB: prev.teamB || [] }
+        : {
+          id,
+          name: `Court ${i + 1}`,
+          status: 'empty', // empty | assigned | playing
+          teamA: [],
+          teamB: []
+        }
     )
   })
 }
@@ -63,6 +65,7 @@ const initialState = {
   numCourts: 2,
   players: [],
   queue: [],
+  matchQueue: [],
   courts: makeCourts(2),
   games: []
 }
@@ -75,6 +78,7 @@ function hasRealData(data) {
   return (
     (data.players && data.players.length > 0) ||
     (data.queue && data.queue.length > 0) ||
+    (data.matchQueue && data.matchQueue.length > 0) ||
     (data.games && data.games.length > 0) ||
     (data.courts && data.courts.some((c) => c.status !== 'empty'))
   )
@@ -393,43 +397,75 @@ export default function App() {
   }
 
   const runAutoMatch = (strategy = 'fairRotation') => {
-    const result = autoMatch(state.queue, state.players, strategy, state.games)
+    const reservedPlayerIds = new Set([
+      ...(state.matchQueue || []).flatMap((match) => [...(match.teamA || []), ...(match.teamB || [])]),
+      ...state.courts.flatMap((court) => [...(court.teamA || []), ...(court.teamB || [])])
+    ])
+    const matchableQueue = state.queue.filter((entry) => !reservedPlayerIds.has(entry.id))
+    const result = autoMatch(matchableQueue, state.players, strategy, state.games)
     if (!result) return
-    // find first empty court and assign directly
-    const empty = state.courts.find((c) => c.status === 'empty')
-    if (!empty) return
-    const courts = state.courts.map((c) =>
-      c.id === empty.id ? { ...c, status: 'assigned', teamA: result.teamA, teamB: result.teamB } : c
+    const selectedPlayerIds = new Set([...result.teamA, ...result.teamB])
+    const newQueue = state.queue.filter((entry) => !selectedPlayerIds.has(entry.id))
+    const queuedAtByPlayer = Object.fromEntries(
+      state.queue
+        .filter((entry) => selectedPlayerIds.has(entry.id))
+        .map((entry) => [entry.id, entry.queuedAt])
     )
-    const newQueue = state.queue.filter((entry) => !result.teamA.includes(entry.id) && !result.teamB.includes(entry.id))
-    update({ courts, queue: newQueue })
+    update({
+      queue: newQueue,
+      matchQueue: [...(state.matchQueue || []), { id: uid(), ...result, queuedAtByPlayer, createdAt: Date.now() }]
+    })
   }
 
-  const clearPending = () => {
-    if (!pendingMatch) return
+  const createManualMatch = (playerIds) => {
+    if (!Array.isArray(playerIds) || playerIds.length !== 4 || new Set(playerIds).size !== 4) return
+    const reservedPlayerIds = new Set([
+      ...(state.matchQueue || []).flatMap((match) => [...(match.teamA || []), ...(match.teamB || [])]),
+      ...state.courts.flatMap((court) => [...(court.teamA || []), ...(court.teamB || [])])
+    ])
+    const knownPlayerIds = new Set(state.players.map((player) => player.id))
+    if (playerIds.some((playerId) => reservedPlayerIds.has(playerId) || !knownPlayerIds.has(playerId))) return
+    const selected = new Set(playerIds)
+    const queuedAtByPlayer = Object.fromEntries(
+      state.queue
+        .filter((entry) => selected.has(entry.id))
+        .map((entry) => [entry.id, entry.queuedAt])
+    )
+    update({
+      queue: state.queue.filter((entry) => !selected.has(entry.id)),
+      matchQueue: [...(state.matchQueue || []), {
+        id: uid(),
+        teamA: playerIds.slice(0, 2),
+        teamB: playerIds.slice(2, 4),
+        queuedAtByPlayer,
+        createdAt: Date.now()
+      }]
+    })
+  }
+
+  const clearMatch = (matchId) => {
+    const match = (state.matchQueue || []).find((item) => item.id === matchId)
+    if (!match) return
     update({
       queue: [
-        ...pendingMatch.teamA.map((playerId) => ({ id: playerId, queuedAt: Date.now() })),
-        ...pendingMatch.teamB.map((playerId) => ({ id: playerId, queuedAt: Date.now() })),
+        ...[...match.teamA, ...match.teamB].map((playerId) => ({ id: playerId, queuedAt: Date.now() })),
         ...state.queue
-      ]
+      ],
+      matchQueue: state.matchQueue.filter((item) => item.id !== matchId)
     })
-    setPendingMatch(null)
   }
 
-  const swapPendingPlayer = (team, outId) => {
-    if (state.queue.length === 0) return
-    const inId = state.queue[0].id
-    const restQueue = [
-      { id: outId, queuedAt: Date.now() },
-      ...state.queue.slice(1)
-    ]
-    const teamKey = team === 'A' ? 'teamA' : 'teamB'
-    setPendingMatch({
-      ...pendingMatch,
-      [teamKey]: pendingMatch[teamKey].map((pid) => (pid === outId ? inId : pid))
+  const assignMatchToCourt = (matchId, courtId) => {
+    const matchQueueIndex = (state.matchQueue || []).findIndex((item) => item.id === matchId)
+    const match = state.matchQueue?.[matchQueueIndex]
+    const court = state.courts.find((item) => item.id === courtId)
+    if (!match || !court || court.status !== 'empty') return
+    update({
+      courts: state.courts.map((item) => item.id === courtId
+        ? { ...item, status: 'assigned', teamA: match.teamA, teamB: match.teamB, matchNumber: matchQueueIndex + 1 }
+        : item),
+      matchQueue: state.matchQueue.filter((item) => item.id !== matchId)
     })
-    update({ queue: restQueue })
   }
 
   // Assign a single player (from queue) to a court. If court already has players,
@@ -480,6 +516,21 @@ export default function App() {
     update({ courts, queue: [...state.queue, { id: playerId, queuedAt: Date.now() }] })
   }
 
+  const clearCourt = (courtId) => {
+    const court = state.courts.find((item) => item.id === courtId)
+    if (!court || court.status === 'playing') return
+    const playerIds = [...(court.teamA || []), ...(court.teamB || [])]
+    update({
+      courts: state.courts.map((item) => item.id === courtId
+        ? { ...item, status: 'empty', teamA: [], teamB: [], startedAt: null, matchNumber: null }
+        : item),
+      queue: [
+        ...state.queue,
+        ...playerIds.map((playerId) => ({ id: playerId, queuedAt: Date.now() }))
+      ]
+    })
+  }
+
   const assignPendingToCourt = (courtId) => {
     if (!pendingMatch) return
     const courts = state.courts.map((c) =>
@@ -497,6 +548,8 @@ export default function App() {
   }
 
   const startGame = (courtId) => {
+    const court = state.courts.find((item) => item.id === courtId)
+    if (!court || (court.teamA || []).length + (court.teamB || []).length !== 4) return
     update({
       courts: state.courts.map((c) =>
         c.id === courtId ? { ...c, status: 'playing', startedAt: Date.now() } : c
@@ -547,8 +600,11 @@ export default function App() {
     })
 
     const courts = state.courts.map((c) =>
-      c.id === courtId ? { ...c, status: 'empty', teamA: [], teamB: [], startedAt: null } : c
+      c.id === courtId ? { ...c, status: 'empty', teamA: [], teamB: [], startedAt: null, matchNumber: null } : c
     )
+    const scheduledPlayerIds = new Set((state.matchQueue || []).flatMap((match) => [...match.teamA, ...match.teamB]))
+    const returningPlayers = [...court.teamA, ...court.teamB]
+      .filter((playerId) => !scheduledPlayerIds.has(playerId))
 
     update({
       games: [...state.games, game],
@@ -556,8 +612,7 @@ export default function App() {
       courts,
       queue: [
         ...state.queue,
-        ...court.teamA.map((playerId) => ({ id: playerId, queuedAt: Date.now() })),
-        ...court.teamB.map((playerId) => ({ id: playerId, queuedAt: Date.now() }))
+        ...returningPlayers.map((playerId) => ({ id: playerId, queuedAt: Date.now() }))
       ]
     })
   }
@@ -583,6 +638,7 @@ export default function App() {
     const publicProps = {
       players: publicSession.players || [],
       queue: publicSession.queue || [],
+      matchQueue: publicSession.matchQueue || [],
       courts: publicSession.courts || [],
       games: publicSession.games || [],
       courtFee: publicSession.courtFee || 0,
@@ -687,17 +743,18 @@ export default function App() {
             players={state.players}
             queue={state.queue}
             courts={state.courts}
-            pendingMatch={pendingMatch}
+            matchQueue={state.matchQueue || []}
             shuttlePrice={state.shuttlePrice}
             onAutoMatch={runAutoMatch}
-            onClearPending={clearPending}
+            onCreateManualMatch={createManualMatch}
+            onClearMatch={clearMatch}
             onReorderQueue={reorderQueue}
             onReorderQueueTo={reorderQueueTo}
             onRemoveFromQueue={removeFromQueue}
-            onSwapPendingPlayer={swapPendingPlayer}
-            onAssignPendingToCourt={assignPendingToCourt}
+            onAssignMatchToCourt={assignMatchToCourt}
             onAssignPlayerToCourt={assignPlayerToCourt}
             onRemovePlayerFromCourt={removePlayerFromCourt}
+            onClearCourt={clearCourt}
             onStartGame={startGame}
             onDoneGame={doneGame}
             onRenameCourt={renameCourt}
@@ -775,6 +832,7 @@ function makePublicSession(data, sessionId, ownerUid) {
       points: points || 0
     })),
     queue: data.queue || [],
+    matchQueue: data.matchQueue || [],
     courts: (data.courts || []).map(({ id, name, status, teamA, teamB }) => ({ id, name, status, teamA, teamB })),
     games: data.games || []
   }
