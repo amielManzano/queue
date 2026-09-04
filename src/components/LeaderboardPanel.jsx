@@ -318,7 +318,6 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
                 onClick={exportImage}
                 disabled={exporting || ranked.length === 0}
               >
-                <span className="icon" aria-hidden="true">⬇</span>
                 {exporting ? "Exporting..." : "Export"}
               </button>
             </div>

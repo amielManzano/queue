@@ -455,6 +455,39 @@ export default function App() {
     })
   }
 
+  const editMatch = (matchId, playerIds) => {
+    if (!Array.isArray(playerIds) || playerIds.length !== 4 || new Set(playerIds).size !== 4) return
+    const match = (state.matchQueue || []).find((item) => item.id === matchId)
+    if (!match) return
+
+    const reservedPlayerIds = new Set([
+      ...state.courts.flatMap((court) => [...(court.teamA || []), ...(court.teamB || [])]),
+      ...(state.matchQueue || [])
+        .filter((item) => item.id !== matchId)
+        .flatMap((item) => [...(item.teamA || []), ...(item.teamB || [])])
+    ])
+    const knownPlayerIds = new Set(state.players.map((player) => player.id))
+    if (playerIds.some((playerId) => reservedPlayerIds.has(playerId) || !knownPlayerIds.has(playerId))) return
+
+    const selectedPlayerIds = new Set(playerIds)
+    const originalPlayerIds = [...match.teamA, ...match.teamB]
+    const queuedAtByPlayer = Object.fromEntries(playerIds.map((playerId) => [
+      playerId,
+      match.queuedAtByPlayer?.[playerId] || state.queue.find((entry) => entry.id === playerId)?.queuedAt || Date.now()
+    ]))
+    update({
+      queue: [
+        ...state.queue.filter((entry) => !selectedPlayerIds.has(entry.id)),
+        ...originalPlayerIds
+          .filter((playerId) => !selectedPlayerIds.has(playerId))
+          .map((playerId) => ({ id: playerId, queuedAt: Date.now() }))
+      ],
+      matchQueue: state.matchQueue.map((item) => item.id === matchId
+        ? { ...item, teamA: playerIds.slice(0, 2), teamB: playerIds.slice(2, 4), queuedAtByPlayer }
+        : item)
+    })
+  }
+
   const assignMatchToCourt = (matchId, courtId) => {
     const matchQueueIndex = (state.matchQueue || []).findIndex((item) => item.id === matchId)
     const match = state.matchQueue?.[matchQueueIndex]
@@ -747,6 +780,7 @@ export default function App() {
             shuttlePrice={state.shuttlePrice}
             onAutoMatch={runAutoMatch}
             onCreateManualMatch={createManualMatch}
+            onEditMatch={editMatch}
             onClearMatch={clearMatch}
             onReorderQueue={reorderQueue}
             onReorderQueueTo={reorderQueueTo}

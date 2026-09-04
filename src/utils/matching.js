@@ -12,10 +12,6 @@ export function autoMatch(queue, players, strategy = 'fairRotation', games = [])
   const entries = queue.map((e) => ({ entry: e, player: byId[e.id] })).filter((x) => x.player)
   if (entries.length < 4) return null
 
-  // Limit pool size to keep combinations reasonable (C(8,4)=70)
-  const poolLimit = Math.min(entries.length, 8)
-  const pool = entries.slice(0, poolLimit).map((m) => ({ ...m.player, queuedAt: m.entry.queuedAt }))
-
   // Build partner/opponent counts from recent games
   const partnerCount = {}
   const opponentCount = {}
@@ -44,6 +40,15 @@ export function autoMatch(queue, players, strategy = 'fairRotation', games = [])
   })
 
   const lastGamePlayers = new Set((recentGames[recentGames.length - 1] || { teamA: [], teamB: [] }).teamA.concat((recentGames[recentGames.length - 1] || { teamA: [], teamB: [] }).teamB || []))
+  const playersWhoDidNotPlayLastGame = entries.filter(({ player }) => !lastGamePlayers.has(player.id))
+  const rotationEntries = strategy === 'fairRotation' && playersWhoDidNotPlayLastGame.length >= 4
+    ? playersWhoDidNotPlayLastGame
+    : entries
+
+  // Fair Rotation deliberately holds players from the last game when a fresh
+  // group can be made. A 12-player pool still keeps combinations manageable.
+  const poolLimit = Math.min(rotationEntries.length, strategy === 'fairRotation' ? 12 : 8)
+  const pool = rotationEntries.slice(0, poolLimit).map((match) => ({ ...match.player, queuedAt: match.entry.queuedAt }))
 
   // helper: evaluate a 4-player combo
   const now = Date.now()
@@ -81,12 +86,12 @@ export function autoMatch(queue, players, strategy = 'fairRotation', games = [])
     let score = 0
 
     if (strat === 'fairRotation') {
-      score += gamesSum * 6           // prefer fewest games
-      score -= waitSum / 1000 * 5     // prefer longer wait (subtract to reduce score)
-      score += partners * 40          // avoid repeated partners
-      score += opponents * 30         // avoid repeated opponents
-      score += skillDiff * 8         // balance skill moderately
-      score += consecutive * 200     // strong penalty for consecutive games
+      score += gamesSum * 10          // prefer players with fewer games
+      score -= waitSum / 1000 * 2     // reward waiting, without overpowering matchup variety
+      score += partners * 900         // strongly avoid repeating player groups and teammates
+      score += opponents * 450        // strongly avoid familiar opponents
+      score += skillDiff * 12         // retain skill balance
+      score += consecutive * 2000     // only used when a fresh group cannot be formed
     } else if (strat === 'balancedSkill') {
       score += skillDiff * 12         // prioritize skill balance
       score += gamesSum * 4           // prefer fewest games

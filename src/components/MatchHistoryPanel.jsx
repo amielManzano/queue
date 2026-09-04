@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { PenLine } from 'lucide-react'
 
 function formatDate(timestamp) {
   if (!timestamp) return 'Unknown date'
@@ -64,9 +65,11 @@ export default function MatchHistoryPanel({ games, players, onEditGame }) {
                     {game.teamB.map(playerName).join(' & ') || 'Team B'}
                   </span>
                 </div>
-                <div className="match-history-meta">{game.shuttlesUsed ?? 0} shuttle{game.shuttlesUsed === 1 ? '' : 's'} used</div>
+                <div className="match-history-meta">{Number(game.shuttlesUsed || 0).toFixed(2)} shuttle{Number(game.shuttlesUsed || 0) === 1 ? '' : 's'} used</div>
               </div>
-              <button className="btn secondary small match-history-edit" onClick={() => openEditor(game)}>Edit</button>
+              <button className="btn secondary small match-history-edit" onClick={() => openEditor(game)} aria-label="Edit match" title="Edit match">
+                <PenLine size={14} strokeWidth={2} aria-hidden="true" />
+              </button>
             </article>
           ))}
         </div>
@@ -98,7 +101,7 @@ export default function MatchHistoryPanel({ games, players, onEditGame }) {
               </label>
               <label className="match-edit-field">
                 <span>Shuttles used</span>
-                <input type="number" min="0" step="1" value={editingGame.shuttlesUsed} onChange={(event) => setEditingGame({ ...editingGame, shuttlesUsed: event.target.value })} />
+                <input type="number" min="0" step="0.01" value={editingGame.shuttlesUsed} onChange={(event) => setEditingGame({ ...editingGame, shuttlesUsed: event.target.value })} />
               </label>
             </div>
             <div className="actions player-edit-actions">

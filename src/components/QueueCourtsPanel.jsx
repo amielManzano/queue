@@ -81,6 +81,7 @@ export default function QueueCourtsPanel({
   shuttlePrice,
   onAutoMatch,
   onCreateManualMatch,
+  onEditMatch,
   onClearMatch,
   onReorderQueue,
   onReorderQueueTo,
@@ -96,9 +97,10 @@ export default function QueueCourtsPanel({
 }) {
   const [assignStrategy, setAssignStrategy] = useState('fairRotation')
   const [doneModalCourt, setDoneModalCourt] = useState(null)
-  const [selectedCourtByMatch, setSelectedCourtByMatch] = useState({})
+  const [assigningMatch, setAssigningMatch] = useState(null)
   const [manualMatchOpen, setManualMatchOpen] = useState(false)
   const [manualPlayerIds, setManualPlayerIds] = useState([])
+  const [editingMatch, setEditingMatch] = useState(null)
   const [manualSearch, setManualSearch] = useState('')
   const [selectModal, setSelectModal] = useState(null)
   const [selectSearch, setSelectSearch] = useState('')
@@ -111,22 +113,6 @@ export default function QueueCourtsPanel({
     const timer = window.setInterval(() => setTick(Date.now()), 1000)
     return () => window.clearInterval(timer)
   }, [])
-
-  useEffect(() => {
-    const firstAvailableCourt = courts.find((court) => court.status === 'empty')
-    if (!firstAvailableCourt) return
-    setSelectedCourtByMatch((selected) => {
-      const next = { ...selected }
-      let changed = false
-      matchQueue.forEach((match) => {
-        if (!next[match.id]) {
-          next[match.id] = firstAvailableCourt.id
-          changed = true
-        }
-      })
-      return changed ? next : selected
-    })
-  }, [matchQueue, courts])
 
   const byId = Object.fromEntries(players.map((p) => [p.id, p]))
   const playerName = (id) => byId[id]?.name || '—'
@@ -142,8 +128,15 @@ export default function QueueCourtsPanel({
   const courtPlayerIds = new Set(courts.flatMap((court) => [...(court.teamA || []), ...(court.teamB || [])]))
   const availableCourtPlayers = players.filter((player) => !courtPlayerIds.has(player.id))
   const matchPlayerIds = new Set(matchQueue.flatMap((match) => [...(match.teamA || []), ...(match.teamB || [])]))
+  const queuedPlayerIds = new Set(queuedPlayers.map((player) => player.id))
   const autoMatchPlayerCount = queuedPlayers.filter((player) => !courtPlayerIds.has(player.id) && !matchPlayerIds.has(player.id)).length
-  const manualMatchPlayers = players.filter((player) => !courtPlayerIds.has(player.id) && !matchPlayerIds.has(player.id))
+  const isManualMatchEligible = (player) => !courtPlayerIds.has(player.id) && !matchPlayerIds.has(player.id)
+  const manualMatchPlayers = [
+    ...queuedPlayers.filter(isManualMatchEligible),
+    ...players
+      .filter((player) => !queuedPlayerIds.has(player.id) && isManualMatchEligible(player))
+      .sort((first, second) => first.name.localeCompare(second.name))
+  ]
   const activePlayers = players.filter((player) => queue.some((entry) => entry.id === player.id) || courtPlayerIds.has(player.id) || matchPlayerIds.has(player.id))
   const selectedModalCourt = selectModal ? courts.find((court) => court.id === selectModal.courtId) : null
   const selectedModalTeam = selectModal?.team === 'A' ? selectedModalCourt?.teamA : selectedModalCourt?.teamB
@@ -165,6 +158,30 @@ export default function QueueCourtsPanel({
     onCreateManualMatch && onCreateManualMatch(manualPlayerIds)
     setManualPlayerIds([])
     setManualMatchOpen(false)
+  }
+
+  const openMatchEditor = (match) => {
+    setManualSearch('')
+    const playerIds = [...match.teamA, ...match.teamB]
+    setEditingMatch({ id: match.id, playerIds, originalPlayerIds: playerIds })
+  }
+
+  const saveMatchEdit = () => {
+    if (!editingMatch || editingMatch.playerIds.length !== 4) return
+    onEditMatch?.(editingMatch.id, editingMatch.playerIds)
+    setEditingMatch(null)
+  }
+
+  const toggleEditedMatchPlayer = (playerId) => {
+    setEditingMatch((match) => {
+      if (!match) return match
+      return {
+        ...match,
+        playerIds: match.playerIds.includes(playerId)
+          ? match.playerIds.filter((id) => id !== playerId)
+          : match.playerIds.length < 4 ? [...match.playerIds, playerId] : match.playerIds
+      }
+    })
   }
 
   const formatWaitTime = (queuedAt) => {
@@ -430,29 +447,60 @@ export default function QueueCourtsPanel({
               <option value="random">Random</option>
             </select>
 
-            <button className="btn gold" onClick={() => onAutoMatch && onAutoMatch(assignStrategy)}>
-              ⚡ Auto-assign next match
+            <button className="btn gold queue-match-primary" onClick={() => onAutoMatch && onAutoMatch(assignStrategy)}>
+              Auto-assign
             </button>
-            <button className="btn secondary" onClick={() => { setManualSearch(''); setManualMatchOpen(true) }}>
-              + Manual match
+            <button className="btn secondary queue-match-secondary" onClick={() => { setManualSearch(''); setManualMatchOpen(true) }}>
+              Manual match
             </button>
 
             <span className="muted">Choose a matching strategy: Fair Rotation, Balanced Skill, or Random</span>
         </div>
 
-        {matchQueue.length > 0 && (
-          <div className="match-queue">
-            <div className="page-heading">
-              <h2>Match queue</h2>
-              <span>{matchQueue.length} waiting</span>
-            </div>
+        <div className="match-queue">
+          <div className="page-heading">
+            <h2>Match queue</h2>
+            <span>{matchQueue.length} waiting</span>
+          </div>
+          {matchQueue.length === 0 ? (
+            <div className="match-queue-empty">No matches scheduled</div>
+          ) : (
             <div className="match-queue-items">
               {matchQueue.map((match, index) => (
                 <div className="court-card match-queue-card" key={match.id}>
-                <h3 className="match-queue-card-heading">
-                  <span className="match-number">{index + 1}</span>
-                  <span>Match</span>
-                </h3>
+                <div className="match-queue-card-top">
+                  <h3 className="match-queue-card-heading">
+                    <span className="match-number">{index + 1}</span>
+                    <span>Match</span>
+                  </h3>
+                  <div className="row match-queue-actions">
+                    <button
+                      className="btn match-queue-action match-queue-assign"
+                      aria-label="Add match to court"
+                      title="Add match to court"
+                      disabled={emptyCourts.length === 0}
+                      onClick={() => setAssigningMatch(match)}
+                    >
+                        <span aria-hidden="true">&#10132;</span>
+                    </button>
+                    <button
+                      className="btn secondary match-queue-action"
+                      aria-label="Edit match"
+                      title="Edit match"
+                      onClick={() => openMatchEditor(match)}
+                    >
+                      <span aria-hidden="true">&#9998;</span>
+                    </button>
+                    <button
+                      className="btn secondary match-queue-action match-queue-return"
+                      aria-label="Return players to queue"
+                      title="Return players to queue"
+                      onClick={() => onClearMatch(match.id)}
+                    >
+                      <span aria-hidden="true">&#8634;</span>
+                    </button>
+                  </div>
+                </div>
                 <div className="match-teams">
                   <div className="team-line">
                     <span className="team-label team-a-label">Team A</span>
@@ -486,47 +534,11 @@ export default function QueueCourtsPanel({
                     </div>
                   </div>
                 </div>
-                <div className="row match-queue-actions" style={{ marginTop: 12 }}>
-                  <select
-                    value={selectedCourtByMatch[match.id] || ''}
-                    onChange={(e) => setSelectedCourtByMatch({ ...selectedCourtByMatch, [match.id]: e.target.value })}
-                    disabled={emptyCourts.length === 0}
-                  >
-                    <option value="" disabled>
-                      {emptyCourts.length === 0 ? 'No court' : 'Court'}
-                    </option>
-                    {emptyCourts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                  <button
-                    className="btn"
-                    aria-label="Add match to court"
-                    title="Add match to court"
-                    disabled={!selectedCourtByMatch[match.id]}
-                    onClick={() => {
-                      onAssignMatchToCourt(match.id, selectedCourtByMatch[match.id])
-                      setSelectedCourtByMatch((selected) => {
-                        const next = { ...selected }
-                        delete next[match.id]
-                        return next
-                      })
-                    }}
-                  >
-                    <span aria-hidden="true">+</span>
-                  </button>
-                  <button
-                    className="btn secondary"
-                    aria-label="Return players to queue"
-                    title="Return players to queue"
-                    onClick={() => onClearMatch(match.id)}
-                  >
-                    <span aria-hidden="true">↩</span>
-                  </button>
-                </div>
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         <div className="player-status-list">
           <div className="page-heading">
@@ -595,6 +607,36 @@ export default function QueueCourtsPanel({
         />
       )}
 
+      {assigningMatch && (
+        <div className="modal-backdrop" onClick={() => setAssigningMatch(null)}>
+          <div className="modal assign-court-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="court-player-modal-heading">
+              <div>
+                <span className="modal-kicker">Assign match</span>
+                <h3>Choose an available court</h3>
+              </div>
+              <button className="modal-close" onClick={() => setAssigningMatch(null)} aria-label="Close court selector" title="Close">×</button>
+            </div>
+            <div className="assign-court-list">
+              {emptyCourts.map((court) => (
+                <button
+                  className="assign-court-option"
+                  key={court.id}
+                  onClick={() => {
+                    onAssignMatchToCourt?.(assigningMatch.id, court.id)
+                    setAssigningMatch(null)
+                  }}
+                >
+                  <span>{court.name}</span>
+                  <small>Available</small>
+                </button>
+              ))}
+              {emptyCourts.length === 0 && <div className="empty-state">No courts are available.</div>}
+            </div>
+          </div>
+        </div>
+      )}
+
       {manualMatchOpen && (
         <div className="modal-backdrop" onClick={() => setManualMatchOpen(false)}>
           <div className="modal court-player-modal manual-match-modal" onClick={(e) => e.stopPropagation()}>
@@ -602,7 +644,7 @@ export default function QueueCourtsPanel({
               <div>
                 <span className="modal-kicker">Build a match</span>
                 <h3>Manual match</h3>
-                <p className="muted">Choose four available players. The first two form Team A.</p>
+                <p className="muted">Choose four players. Waiting players appear first; the first two form Team A.</p>
               </div>
               <span className="manual-match-count">{manualPlayerIds.length}/4</span>
             </div>
@@ -620,7 +662,7 @@ export default function QueueCourtsPanel({
                       <div className="court-player-option-avatar">{player.name.charAt(0).toUpperCase()}</div>
                       <div>
                         <div className="court-player-option-name" title={player.name}>{player.name}</div>
-                        <div className="muted court-player-option-skill">{selectionIndex >= 0 ? `Team ${team.toUpperCase()} · Player ${(selectionIndex % 2) + 1}` : skillLabel(player.skillLevel)}</div>
+                        <div className="muted court-player-option-skill">{selectionIndex >= 0 ? `Team ${team.toUpperCase()} · Player ${(selectionIndex % 2) + 1}` : queuedPlayerIds.has(player.id) ? 'In queue' : skillLabel(player.skillLevel)}</div>
                       </div>
                     </div>
                     <button className={selectionIndex >= 0 ? 'btn secondary small' : 'btn small'} onClick={() => toggleManualPlayer(player.id)}>
@@ -645,13 +687,13 @@ export default function QueueCourtsPanel({
             <div className="court-player-modal-heading">
               <div>
                 <span className="modal-kicker">Court edit</span>
-                <h3>Select player for {selectModal.courtId}</h3>
+                <h3>Add player to {selectedModalCourt?.name || selectModal.courtId}</h3>
               </div>
               <button className="modal-close" onClick={() => setSelectModal(null)} aria-label="Close player selector" title="Close">×</button>
             </div>
             <div className="court-player-search">
               <span aria-hidden="true">⌕</span>
-              <input autoFocus placeholder="Search players" value={selectSearch} onChange={(e) => setSelectSearch(e.target.value)} />
+              <input autoFocus placeholder="Search available players" value={selectSearch} onChange={(e) => setSelectSearch(e.target.value)} />
             </div>
             <div className="court-player-list">
               {(() => {
@@ -667,7 +709,7 @@ export default function QueueCourtsPanel({
                       </div>
                     </div>
                     <button
-                      className="btn small"
+                      className="btn small court-player-add"
                       onClick={() => {
                         onAssignPlayerToCourt?.(selectModal.courtId, player.id, selectModal.team, selectModal.idx)
                         setSelectModal(null)
@@ -692,6 +734,51 @@ export default function QueueCourtsPanel({
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {editingMatch && (
+        <div className="modal-backdrop" onClick={() => setEditingMatch(null)}>
+          <div className="modal court-player-modal manual-match-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="court-player-modal-heading manual-match-heading">
+              <div>
+                <span className="modal-kicker">Update match</span>
+                <h3>Edit match</h3>
+                <p className="muted">Choose four players. The first two form Team A.</p>
+              </div>
+              <span className="manual-match-count">{editingMatch.playerIds.length}/4</span>
+            </div>
+            <div className="court-player-search">
+              <span aria-hidden="true">⌕</span>
+              <input autoFocus placeholder="Search players" value={manualSearch} onChange={(e) => setManualSearch(e.target.value)} />
+            </div>
+            <div className="court-player-list manual-match-list">
+              {players.filter((player) => {
+                const selected = editingMatch.playerIds.includes(player.id)
+                const canSelect = !courtPlayerIds.has(player.id) && (!matchPlayerIds.has(player.id) || editingMatch.originalPlayerIds.includes(player.id))
+                return (selected || canSelect) && player.name.toLowerCase().includes(manualSearch.trim().toLowerCase())
+              }).map((player) => {
+                const selectionIndex = editingMatch.playerIds.indexOf(player.id)
+                const team = selectionIndex < 2 ? 'a' : 'b'
+                return (
+                  <div className={`court-player-option manual-match-option${selectionIndex >= 0 ? ` selected team-${team}` : ''}`} key={player.id}>
+                    <div className="court-player-option-info">
+                      <div className="court-player-option-avatar">{player.name.charAt(0).toUpperCase()}</div>
+                      <div>
+                        <div className="court-player-option-name">{player.name}</div>
+                        <div className="muted court-player-option-skill">{selectionIndex >= 0 ? `Team ${team.toUpperCase()} · Player ${(selectionIndex % 2) + 1}` : skillLabel(player.skillLevel)}</div>
+                      </div>
+                    </div>
+                    <button className={selectionIndex >= 0 ? 'btn secondary small' : 'btn small'} onClick={() => toggleEditedMatchPlayer(player.id)}>{selectionIndex >= 0 ? `${team.toUpperCase()}${(selectionIndex % 2) + 1}` : 'Select'}</button>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="actions" style={{ marginTop: 16 }}>
+              <button className="btn secondary" onClick={() => setEditingMatch(null)}>Cancel</button>
+              <button className="btn" disabled={editingMatch.playerIds.length !== 4} onClick={saveMatchEdit}>Save match</button>
+            </div>
           </div>
         </div>
       )}

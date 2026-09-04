@@ -61,6 +61,11 @@ export default function PlayersPanel({ players, games, courtFee, onAddPlayer, on
         <div className="players-title-group">
           <h2>Players</h2>
           <span>{players.length} registered</span>
+          <div className="player-status-legend" aria-label="Player status legend">
+            <span><i className="available" />Available</span>
+            <span><i className="queue" />In queue</span>
+            <span><i className="court" />On court</span>
+          </div>
         </div>
         <div className="players-toolbar-actions">
           <input
@@ -93,12 +98,16 @@ export default function PlayersPanel({ players, games, courtFee, onAddPlayer, on
           const isOnCourt = onCourtIds.has(p.id)
           const isQueued = queuedIds.has(p.id)
           const queueLabel = isOnCourt ? 'On court' : isQueued ? 'In queue' : 'Queue'
+          const status = isOnCourt ? 'court' : isQueued ? 'queue' : 'available'
 
           return (
           <tr key={p.id}>
             <th scope="row" className="player-table-identity">
-              <div className="leader-avatar" title={p.name}>
-                <div className="avatar-initials">{p.name.split(' ').map((w) => w[0]).slice(0,2).join('').toUpperCase()}</div>
+              <div className="player-avatar-wrap">
+                <div className="leader-avatar" title={p.name}>
+                  <div className="avatar-initials">{p.name.split(' ').map((w) => w[0]).slice(0,2).join('').toUpperCase()}</div>
+                </div>
+                <span className={`player-avatar-status ${status}`} title={queueLabel} aria-label={queueLabel} />
               </div>
               <span className="player-identity-content">
                 <strong className="leader-name" onDoubleClick={() => beginEdit(p)}>{p.name}</strong>
@@ -106,7 +115,7 @@ export default function PlayersPanel({ players, games, courtFee, onAddPlayer, on
               </span>
             </th>
             <td data-label="Games">{p.gamesPlayed}</td>
-            <td data-label="Shuttles">{p.shuttlesUsed ? p.shuttlesUsed.toFixed(1) : '0.0'}</td>
+            <td data-label="Shuttles">{p.shuttlesUsed ? p.shuttlesUsed.toFixed(2) : '0.00'}</td>
             <td data-label="Payment">₱{p.totalPayment.toFixed(2)}</td>
             <td className="player-table-actions" data-label="Actions">
                 <button
