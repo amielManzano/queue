@@ -21,9 +21,24 @@ function getWinRate(player) {
   return player.gamesPlayed ? player.wins / player.gamesPlayed : 0;
 }
 
+function formatCompactNumber(value) {
+  const number = Number(value) || 0;
+  const absolute = Math.abs(number);
+  const suffixes = [
+    { threshold: 1e9, suffix: "B" },
+    { threshold: 1e6, suffix: "M" },
+    { threshold: 1e3, suffix: "K" },
+  ];
+  const match = suffixes.find(({ threshold }) => absolute >= threshold);
+  if (!match) return String(number);
+  const compact = number / match.threshold;
+  return `${Number(compact.toFixed(1))}${match.suffix}`;
+}
+
 function getRankingKey(player, rankBy) {
   const winRate = Math.round(getWinRate(player) * 100);
   const points = player.points || 0;
+  const compositeScore = getWinRate(player) * Math.sqrt(player.gamesPlayed || 0);
 
   if (rankBy === "mostWins") {
     return [player.wins, winRate, points].join("|");
@@ -33,7 +48,7 @@ function getRankingKey(player, rankBy) {
     return [player.gamesPlayed >= 5 ? 1 : 0, winRate, player.wins, points].join("|");
   }
 
-  return [winRate * 0.7 + player.wins * 2 + player.gamesPlayed * 0.3, player.wins, winRate, points].join("|");
+  return [compositeScore.toFixed(6), player.wins, winRate, points].join("|");
 }
 
 function getInitials(name = "") {
@@ -44,6 +59,17 @@ function getInitials(name = "") {
     .slice(0, 2)
     .join("")
     .toUpperCase();
+}
+
+function formatDate(value) {
+  if (!value) return '';
+  const date = typeof value.toDate === "function" ? value.toDate() : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function defaultSeasonLabel() {
@@ -72,21 +98,25 @@ function RankMedal({ place, tone }) {
   );
 }
 
-export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
+export default function LeaderboardPanel({ players: sessionPlayers, overallPlayers = [], overallOnly = false, defaultScope = "session", sessionId, seasonLabel, sessionCreatedAt }) {
   const exportRef = useRef(null);
   const [exporting, setExporting] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [exportError, setExportError] = useState('');
   const [rankBy, setRankBy] = useState("composite");
-  const displayedDate = seasonLabel || defaultSeasonLabel();
+  const [scope, setScope] = useState(overallOnly ? "overall" : defaultScope);
+  const players = scope === "overall" ? overallPlayers : sessionPlayers;
+  const displayedDate = scope === "overall"
+    ? defaultSeasonLabel()
+    : formatDate(sessionCreatedAt) || seasonLabel || defaultSeasonLabel();
 
   const ranked = players.filter((player) => player.gamesPlayed > 0).sort((a, b) => {
     const wrA = Math.round(getWinRate(a) * 100);
     const wrB = Math.round(getWinRate(b) * 100);
     const pointsA = a.points || 0;
     const pointsB = b.points || 0;
-    const compositeA = wrA * 0.7 + a.wins * 2 + a.gamesPlayed * 0.3;
-    const compositeB = wrB * 0.7 + b.wins * 2 + b.gamesPlayed * 0.3;
+    const compositeA = getWinRate(a) * Math.sqrt(a.gamesPlayed || 0);
+    const compositeB = getWinRate(b) * Math.sqrt(b.gamesPlayed || 0);
     const eligibleA = a.gamesPlayed >= 5 ? 1 : 0;
     const eligibleB = b.gamesPlayed >= 5 ? 1 : 0;
 
@@ -148,7 +178,7 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
       ? "Ranked by most wins. Ties are broken by win rate."
       : rankBy === "winRateMin5"
         ? "Ranked by win rate (minimum 5 games). Points break ties."
-        : "Ranked by composite score. Points break ties.";
+        : "Ranked by volume-adjusted win rate: win rate × √games. Wins and points break ties.";
 
   const exportImage = async () => {
     if (!exportRef.current) return;
@@ -282,9 +312,40 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
   return (
     <div className="panel league-board" ref={exportRef} style={{ position: "relative" }}>
       {ranked.length === 0 ? (
-        <div className="empty-state">
-          No completed games yet. Results appear here once games are marked
-          done.
+        <div className="leaderboard-grid modern-leaderboard">
+          <div className="league-head">
+            <div className="league-head-left">
+              <span className="league-head-icon">
+                <img src={logo} alt="STP Badminton" />
+              </span>
+              <div>
+                <div className="league-title">Leaderboard</div>
+              </div>
+            </div>
+            <div className="league-head-meta">
+              <span>As of</span>
+              <strong>{displayedDate}</strong>
+            </div>
+            <div className="league-head-controls">
+              {!overallOnly && <label className="league-rank-by">
+                <select value={scope} onChange={(e) => setScope(e.target.value)} aria-label="Leaderboard scope">
+                  <option value="session">Session leaderboard</option>
+                  <option value="overall">Overall leaderboard</option>
+                </select>
+              </label>}
+              <label className="league-rank-by">
+                <select value={rankBy} onChange={(e) => setRankBy(e.target.value)}>
+                  <option value="composite">Composite Score</option>
+                  <option value="winRateMin5">Win rate (min. games)</option>
+                  <option value="mostWins">Most Wins</option>
+                </select>
+              </label>
+              <button className="league-export-btn" disabled>Export</button>
+            </div>
+          </div>
+          <div className="empty-state">
+            No completed games yet. Results appear here once games are marked done.
+          </div>
         </div>
       ) : (
         <div className="leaderboard-grid modern-leaderboard">
@@ -297,11 +358,17 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
                 <div className="league-title">Leaderboard</div>
               </div>
             </div>
+            <div className="league-head-meta">
+              <span>As of</span>
+              <strong>{displayedDate}</strong>
+            </div>
             <div className="league-head-controls">
-              <div className="league-date" aria-label={`Leaderboard date: ${displayedDate}`}>
-                <span>As of</span>
-                <strong>{displayedDate}</strong>
-              </div>
+              {!overallOnly && <label className="league-rank-by">
+                <select value={scope} onChange={(e) => setScope(e.target.value)} aria-label="Leaderboard scope">
+                  <option value="session">Session leaderboard</option>
+                  <option value="overall">Overall leaderboard</option>
+                </select>
+              </label>}
               <label className="league-rank-by">
                 <select
                   value={rankBy}
@@ -373,15 +440,15 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
                       </div>
                       <div>
                         <span>Games</span>
-                        <strong>{p?.gamesPlayed ?? 0}</strong>
+                        <strong>{formatCompactNumber(p?.gamesPlayed ?? 0)}</strong>
                       </div>
                       <div>
                         <span>W-L</span>
-                        <strong>{p ? `${p.wins}-${p.losses}` : "--"}</strong>
+                        <strong>{p ? `${formatCompactNumber(p.wins)}-${formatCompactNumber(p.losses)}` : "--"}</strong>
                       </div>
                       <div>
                         <span>Points</span>
-                        <strong>{p?.points ?? 0}</strong>
+                        <strong>{formatCompactNumber(p?.points ?? 0)}</strong>
                       </div>
                     </div>
 
@@ -437,11 +504,11 @@ export default function LeaderboardPanel({ players, sessionId, seasonLabel }) {
                         />
                       </span>
                     </div>
-                    <div className="league-cell">{player.gamesPlayed}</div>
+                    <div className="league-cell">{formatCompactNumber(player.gamesPlayed)}</div>
                     <div className="league-cell wl">
-                      {player.wins}-{player.losses}
+                      {formatCompactNumber(player.wins)}-{formatCompactNumber(player.losses)}
                     </div>
-                    <div className="league-cell points">{player.points}</div>
+                    <div className="league-cell points">{formatCompactNumber(player.points)}</div>
                   </div>
                 ))}
               </div>

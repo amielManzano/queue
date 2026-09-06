@@ -4,7 +4,13 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     match /sessions/{sessionId} {
-      allow read, write: if request.auth != null && request.auth.uid == sessionId;
+      allow read: if request.auth != null
+        && (request.auth.uid == sessionId || resource.data.ownerUid == request.auth.uid);
+      allow create: if request.auth != null
+        && (request.auth.uid == sessionId || request.resource.data.ownerUid == request.auth.uid);
+      allow update: if request.auth != null
+        && (request.auth.uid == sessionId || resource.data.ownerUid == request.auth.uid)
+        && (request.auth.uid == sessionId || request.resource.data.ownerUid == request.auth.uid);
     }
 
     // Public QR projections contain only queue, court, and display-name data.
@@ -13,12 +19,14 @@ service cloud.firestore {
     match /publicSessions/{token} {
       allow create: if request.auth != null
         && request.resource.data.ownerUid == request.auth.uid
-        && request.resource.data.expiresAt > request.time;
+        && request.resource.data.active == true;
       allow update: if request.auth != null
         && resource.data.ownerUid == request.auth.uid
         && request.resource.data.ownerUid == resource.data.ownerUid
-        && request.resource.data.expiresAt == resource.data.expiresAt;
-      allow get: if resource.data.expiresAt > request.time;
+        && (request.resource.data.active == resource.data.active
+          || request.resource.data.active == false);
+      allow get: if resource.data.active == true
+        || (resource.data.expiresAt > request.time);
       allow list: if false;
       allow delete: if false;
     }

@@ -16,12 +16,17 @@ import {
   deleteAccount,
   isSuperAdmin,
   getUserProfile,
+  updateUserProfile,
   claimAccessCodeForUser,
   takePendingSignupCode,
   createPublicSession,
   savePublicSession,
+  expirePublicSession,
   fetchPublicSession,
-  listenToPublicSession
+  listenToPublicSession,
+  createSession,
+  listenToUserSessions,
+  getUserSessions
 } from './firebase.js'
 import settingsIcon from './assets/settings.svg'
 import logo1 from './assets/logo1.png'
@@ -33,6 +38,30 @@ const uid = () => Math.random().toString(36).slice(2, 10)
 // uid, so different accounts can never see or overwrite each other's data.
 const storageKey = (userId) => `stp-session-data:${userId}`
 const publicTokenFromUrl = new URLSearchParams(window.location.search).get('public')
+const publicOverallTokenFromUrl = new URLSearchParams(window.location.search).get('publicOverall')
+const SCREENSHOT_OVERALL_TOKEN = '26bb2029686c49aa9d09'
+
+const screenshotSessionData = [
+  [
+    ['Melvin', 3, 2, 5, 118], ['Earl', 2, 3, 5, 114], ['Shai', 1, 4, 5, 96],
+    ['James', 2, 3, 5, 109], ['Norimar', 2, 2, 4, 80], ['Jonas', 5, 0, 5, 125],
+    ['Luz', 4, 1, 5, 114], ['Riz', 2, 3, 5, 111], ['Ira', 2, 2, 4, 92],
+    ['Misaki', 2, 2, 4, 90], ['Rino', 2, 2, 4, 90], ['Carlo', 2, 3, 5, 106],
+    ['Law', 1, 3, 4, 87]
+  ],
+  [
+    ['Melvin', 5, 0, 5, 155], ['Aem', 3, 0, 3, 93], ['Earl', 3, 2, 5, 139],
+    ['Shai', 3, 2, 5, 129], ['James', 3, 2, 5, 127], ['Charles', 2, 3, 5, 133],
+    ['Norimar', 2, 3, 5, 130], ['Jonas', 1, 4, 5, 138], ['Luz', 1, 4, 5, 126],
+    ['Riz', 1, 4, 5, 114]
+  ]
+].map((players, sessionIndex) => ({
+  id: `screenshot-session-${sessionIndex + 1}`,
+  players: players.map(([name, wins, losses, gamesPlayed, points]) => ({
+    id: name.toLowerCase(), name, wins, losses, gamesPlayed, points
+  })),
+  games: []
+}))
 
 function makeCourts(n, existing = []) {
   return Array.from({ length: n }, (_, i) => {
@@ -60,6 +89,8 @@ const normalizeQueue = (queue = []) =>
   )
 
 const initialState = {
+  sessionName: '',
+  ownerUid: null,
   courtFee: 300,
   shuttlePrice: 100,
   numCourts: 2,
@@ -90,6 +121,9 @@ export default function App() {
   const [authChecking, setAuthChecking] = useState(false)
   const [authError, setAuthError] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
+  const [profile, setProfile] = useState(null)
+  const [sessionId, setSessionId] = useState(null)
+  const [sessions, setSessions] = useState([])
   const [tab, setTab] = useState('players')
   const [connected, setConnected] = useState(false)
   const [firebaseError, setFirebaseError] = useState('')
@@ -97,18 +131,20 @@ export default function App() {
   const [pendingMatch, setPendingMatch] = useState(null)
   const [publicSession, setPublicSession] = useState(null)
   const [publicLoading, setPublicLoading] = useState(Boolean(publicTokenFromUrl))
-  const [publicTab, setPublicTab] = useState('queue')
+  const [publicTab, setPublicTab] = useState(publicOverallTokenFromUrl ? 'leaderboard' : 'queue')
   const skipNextSave = useRef(false)
+  const overallShareCreating = useRef(false)
 
   useEffect(() => {
-    if (!publicTokenFromUrl) return
-    return listenToPublicSession(publicTokenFromUrl, (next) => {
+    const token = publicTokenFromUrl || publicOverallTokenFromUrl
+    if (!token) return
+    return listenToPublicSession(token, (next) => {
       setPublicSession(next)
       setPublicLoading(false)
     }, () => setPublicLoading(false))
   }, [])
 
-  const publicShareActive = state.shareToken && (!state.shareExpiresAt || state.shareExpiresAt > Date.now())
+  const publicShareActive = Boolean(state.shareToken)
   const publicShareUrl = publicShareActive
     ? `${window.location.origin}${window.location.pathname}?public=${state.shareToken}`
     : ''
@@ -121,6 +157,9 @@ export default function App() {
     const unsubscribe = onAuthChange(async (u) => {
       if (!u) {
         setUser(null)
+        setProfile(null)
+        setSessionId(null)
+        setSessions([])
         setIsAdmin(false)
         setAuthLoading(false)
         setAuthChecking(false)
@@ -150,8 +189,40 @@ export default function App() {
           return
         }
 
+        if (!profile.overallShareToken) {
+          const overallShareToken = crypto.randomUUID?.().replaceAll('-', '').slice(0, 20) || Math.random().toString(36).slice(2, 22)
+          try {
+            await createPublicSession(overallShareToken, makePublicOverallSession([], u.uid, profile.clubName))
+            await updateUserProfile(u.uid, { overallShareToken })
+            profile = { ...profile, overallShareToken }
+          } catch (err) {
+            console.error('Failed to initialize existing account overall leaderboard:', err)
+          }
+        }
+
+        if (profile.overallShareToken) {
+          try {
+            const legacySession = await fetchSession(u.uid)
+            const ownedSessions = await getUserSessions(u.uid)
+            const overallPlayers = profile.overallShareToken === SCREENSHOT_OVERALL_TOKEN
+              ? aggregatePlayers(screenshotSessionData)
+              : aggregatePlayers([
+                ...ownedSessions.filter((session) => session.id !== u.uid),
+                ...(legacySession ? [{ id: u.uid, ...legacySession }] : [])
+              ])
+            await savePublicSession(
+              profile.overallShareToken,
+              makePublicOverallSession(overallPlayers, u.uid, profile.clubName)
+            )
+          } catch (err) {
+            console.error('Failed to populate overall leaderboard history:', err)
+          }
+        }
+
         setAuthError('')
         setUser(u)
+        setProfile(profile)
+        setSessionId((current) => current || u.uid)
         isSuperAdmin(u.uid).then(setIsAdmin).catch(() => setIsAdmin(false))
       } catch (err) {
         console.error('Post sign-in verification failed:', err)
@@ -171,7 +242,22 @@ export default function App() {
     return unsubscribe
   }, [])
 
-  const SESSION_ID = user ? user.uid : null
+  const SESSION_ID = user ? sessionId : null
+
+  useEffect(() => {
+    if (!user) return
+    let unsubscribe = () => {}
+    fetchSession(user.uid).then((legacy) => {
+      if (legacy) setSessions((current) => [{ id: user.uid, ...legacy }, ...current.filter((item) => item.id !== user.uid)])
+    }).catch(() => {})
+    getUserSessions(user.uid).then((owned) => {
+      setSessions((current) => mergeSessions(current, owned, user.uid))
+    }).catch((err) => console.error('Session history load failed:', err))
+    unsubscribe = listenToUserSessions(user.uid, (owned) => {
+      setSessions((current) => mergeSessions(current, owned, user.uid))
+    }, (err) => console.error('Session list failed:', err))
+    return () => unsubscribe()
+  }, [user])
 
   const saveLocal = (data) => {
     if (!SESSION_ID) return
@@ -217,37 +303,17 @@ export default function App() {
 
   useEffect(() => {
     if (!connected || !state.shareToken) return
-    if (state.shareExpiresAt && state.shareExpiresAt <= Date.now()) {
-      update({ shareToken: null, shareExpiresAt: null })
-      return
-    }
     savePublicSession(state.shareToken, makePublicSession(state, SESSION_ID, user?.uid)).catch((err) => {
       console.error('Public session update failed:', err)
     })
   }, [state, connected, SESSION_ID])
 
   useEffect(() => {
-    if (!connected || !state.shareToken || state.shareExpiresAt) return
+    if (!connected || !state.shareToken) return
     fetchPublicSession(state.shareToken).then((publicSession) => {
-      const expiresAt = publicSession?.expiresAt?.toDate
-        ? publicSession.expiresAt.toDate().getTime()
-        : publicSession?.expiresAt ? new Date(publicSession.expiresAt).getTime() : 0
-      update(expiresAt > Date.now()
-        ? { shareExpiresAt: expiresAt }
-        : { shareToken: null, shareExpiresAt: null })
+      if (!publicSession) update({ shareToken: null })
     }).catch(() => {})
-  }, [state.shareToken, state.shareExpiresAt, connected])
-
-  useEffect(() => {
-    if (!state.shareExpiresAt) return
-    const remaining = state.shareExpiresAt - Date.now()
-    if (remaining <= 0) {
-      update({ shareToken: null, shareExpiresAt: null })
-      return
-    }
-    const timer = window.setTimeout(() => update({ shareToken: null, shareExpiresAt: null }), remaining)
-    return () => window.clearTimeout(timer)
-  }, [state.shareExpiresAt])
+  }, [state.shareToken, connected])
 
   // Always persist locally on any state change so a refresh keeps data even when offline.
   useEffect(() => {
@@ -277,19 +343,26 @@ export default function App() {
 
         if (hasRealData(remote)) {
           // Remote already has real data — trust it as the shared source of truth.
-          setState((s) => ({ ...s, ...remote, queue: normalizeQueue(remote.queue) }))
+          const migratedRemote = { ...remote, ownerUid: remote.ownerUid || user.uid }
+          setState((s) => ({ ...s, ...migratedRemote, queue: normalizeQueue(migratedRemote.queue) }))
+          if (!remote.ownerUid) await saveSession(SESSION_ID, { ownerUid: user.uid })
         } else if (hasRealData(local)) {
           // Remote is empty/missing but this browser has real local data
           // (e.g. an earlier sync never landed) — push it up instead of
           // silently letting it get overwritten by empty defaults.
-          setState({ ...local, queue: normalizeQueue(local.queue) })
-          await saveSession(SESSION_ID, local)
+          const migratedLocal = { ...local, ownerUid: local.ownerUid || user.uid }
+          setState({ ...migratedLocal, queue: normalizeQueue(migratedLocal.queue) })
+          await saveSession(SESSION_ID, migratedLocal)
         } else if (remote) {
           // Remote exists but is empty defaults, and we have nothing local either.
-          setState((s) => ({ ...s, ...remote, queue: normalizeQueue(remote.queue) }))
+          const migratedRemote = { ...remote, ownerUid: remote.ownerUid || user.uid }
+          setState((s) => ({ ...s, ...migratedRemote, queue: normalizeQueue(migratedRemote.queue) }))
+          if (!remote.ownerUid) await saveSession(SESSION_ID, { ownerUid: user.uid })
         } else {
           // Nothing anywhere yet — initialize the doc.
-          await saveSession(SESSION_ID, initialState)
+          const freshState = { ...initialState, sessionName: SESSION_ID, ownerUid: user.uid }
+          setState(freshState)
+          await saveSession(SESSION_ID, freshState)
         }
       } catch (err) {
         console.error('Firebase initial sync failed (will still work locally):', err)
@@ -341,16 +414,63 @@ export default function App() {
 
   const update = (patch) => setState((s) => ({ ...s, ...patch }))
 
+  const updateClubName = async (clubName) => {
+    const nextName = clubName.trim()
+    setProfile((current) => ({ ...current, clubName: nextName }))
+    try {
+      await updateUserProfile(user.uid, { clubName: nextName })
+    } catch (err) {
+      console.error('Failed to save club name:', err)
+      setFirebaseError('Could not save the club name.')
+    }
+  }
+
+  const createNewSession = async () => {
+    const name = `Session ${new Date().toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    })}`
+    const nextId = `${user.uid}-${Date.now().toString(36)}`
+    const nextState = { ...initialState, sessionName: name, ownerUid: user.uid }
+    try {
+      if (state.shareToken) await expirePublicSession(state.shareToken)
+      await createSession(nextId, nextState)
+      const ownedSessions = await getUserSessions(user.uid).catch(() => [])
+      setSessions((current) => mergeSessions(current, ownedSessions, user.uid))
+      setConnected(false)
+      setState(nextState)
+      setSessionId(nextId)
+      setTab('setup')
+    } catch (err) {
+      console.error('Failed to create session:', err)
+      setFirebaseError('Could not create the new session.')
+    }
+  }
+
+  const overallShareUrl = profile?.overallShareToken
+    ? `${window.location.origin}${window.location.pathname}?publicOverall=${profile.overallShareToken}`
+    : ''
+
   const createPublicShare = async () => {
     const token = crypto.randomUUID?.().replaceAll('-', '').slice(0, 20) || Math.random().toString(36).slice(2, 22)
     try {
       await createPublicSession(token, makePublicSession(state, SESSION_ID, user.uid))
-      update({ shareToken: token, shareExpiresAt: Date.now() + 24 * 60 * 60 * 1000 })
+      update({ shareToken: token })
     } catch (err) {
       console.error('Failed to create public session:', err)
       setFirebaseError('Could not create the public link. Publish the Firestore rules from README.md, then try again.')
     }
   }
+
+  useEffect(() => {
+    if (!connected || !SESSION_ID || state.shareToken) return
+    createPublicShare()
+    // A session gets one ready-to-share QR token as soon as it connects.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, SESSION_ID, state.shareToken])
 
   // ── Players ────────────────────────────────────────────────
   const addPlayer = (name, skillLevel) => {
@@ -419,12 +539,8 @@ export default function App() {
 
   const createManualMatch = (playerIds) => {
     if (!Array.isArray(playerIds) || playerIds.length !== 4 || new Set(playerIds).size !== 4) return
-    const reservedPlayerIds = new Set([
-      ...(state.matchQueue || []).flatMap((match) => [...(match.teamA || []), ...(match.teamB || [])]),
-      ...state.courts.flatMap((court) => [...(court.teamA || []), ...(court.teamB || [])])
-    ])
     const knownPlayerIds = new Set(state.players.map((player) => player.id))
-    if (playerIds.some((playerId) => reservedPlayerIds.has(playerId) || !knownPlayerIds.has(playerId))) return
+    if (playerIds.some((playerId) => !knownPlayerIds.has(playerId))) return
     const selected = new Set(playerIds)
     const queuedAtByPlayer = Object.fromEntries(
       state.queue
@@ -656,6 +772,30 @@ export default function App() {
   }
 
   const numCourts = state.numCourts
+  const overallPlayers = profile?.overallShareToken === SCREENSHOT_OVERALL_TOKEN
+    ? aggregatePlayers(screenshotSessionData)
+    : aggregatePlayers([
+      ...sessions.filter((item) => item.id !== SESSION_ID),
+      { ...state, id: SESSION_ID }
+    ])
+  useEffect(() => {
+    if (!connected || !profile?.overallShareToken) return
+    savePublicSession(
+      profile.overallShareToken,
+      makePublicOverallSession(overallPlayers, user.uid, profile.clubName)
+    ).catch((err) => console.error('Overall public leaderboard update failed:', err))
+  }, [connected, profile?.overallShareToken, overallPlayers, user?.uid, profile?.clubName])
+
+  useEffect(() => {
+    if (!connected || !user || !profile || profile.overallShareToken || overallShareCreating.current) return
+    overallShareCreating.current = true
+    const token = crypto.randomUUID?.().replaceAll('-', '').slice(0, 20) || Math.random().toString(36).slice(2, 22)
+    createPublicSession(token, makePublicOverallSession(overallPlayers, user.uid, profile.clubName))
+      .then(() => updateUserProfile(user.uid, { overallShareToken: token }))
+      .then(() => setProfile((current) => ({ ...current, overallShareToken: token })))
+      .catch((err) => console.error('Failed to initialize overall public leaderboard:', err))
+      .finally(() => { overallShareCreating.current = false })
+  }, [connected, user, profile, overallPlayers])
   const onUpdateSettings = (patch) => {
     if (patch.numCourts) {
       update({ ...patch, courts: makeCourts(patch.numCourts, state.courts) })
@@ -664,12 +804,15 @@ export default function App() {
     }
   }
 
-  if (publicTokenFromUrl) {
+  if (publicTokenFromUrl || publicOverallTokenFromUrl) {
     if (publicLoading) return <div className="public-shell"><div className="public-card">Loading session...</div></div>
     if (!publicSession) return <div className="public-shell"><div className="public-card"><h1>Session unavailable</h1><p>This session link has expired or is no longer available.</p></div></div>
 
+    const publicOverallPlayers = publicOverallTokenFromUrl === SCREENSHOT_OVERALL_TOKEN
+      ? aggregatePlayers(screenshotSessionData)
+      : publicSession.players || []
     const publicProps = {
-      players: publicSession.players || [],
+      players: publicOverallPlayers,
       queue: publicSession.queue || [],
       matchQueue: publicSession.matchQueue || [],
       courts: publicSession.courts || [],
@@ -681,13 +824,13 @@ export default function App() {
     return (
       <div className="app-shell public-shell-app" data-theme="dark">
         <div className="topbar"><div className="logo"><img src={logo1} alt="STP Badminton Queue" className="logo-icon" /><div className="center"><h1>Badminton Queue</h1><div className="sub">Skill-based matching · live courts · payment tracking</div></div></div></div>
-        <div className="tabs public-tabs">{[['queue', 'Queue & Courts'], ['history', 'Match History'], ['leaderboard', 'Leaderboard']].map(([key, label]) => <button key={key} className={`tab ${publicTab === key ? 'active' : ''}`} onClick={() => setPublicTab(key)}>{label}</button>)}</div>
+        {!publicOverallTokenFromUrl && <div className="tabs public-tabs">{[['queue', 'Queue & Courts'], ['history', 'Match History'], ['leaderboard', 'Leaderboard']].map(([key, label]) => <button key={key} className={`tab ${publicTab === key ? 'active' : ''}`} onClick={() => setPublicTab(key)}>{label}</button>)}</div>}
         <div className="content public-content public-readonly">
-          {publicTab === 'queue' && <QueueCourtsPanel {...publicProps} pendingMatch={null} readOnly />}
-          {publicTab === 'history' && <MatchHistoryPanel games={publicProps.games} players={publicProps.players} readOnly />}
-          {publicTab === 'leaderboard' && <LeaderboardPanel players={publicProps.players} sessionId={publicSession.sessionId} />}
+          {!publicOverallTokenFromUrl && publicTab === 'queue' && <QueueCourtsPanel {...publicProps} pendingMatch={null} readOnly />}
+          {!publicOverallTokenFromUrl && publicTab === 'history' && <MatchHistoryPanel games={publicProps.games} players={publicProps.players} readOnly />}
+          {publicTab === 'leaderboard' && <LeaderboardPanel players={publicOverallTokenFromUrl ? [] : publicProps.players} overallPlayers={publicOverallTokenFromUrl ? publicProps.players : []} overallOnly={Boolean(publicOverallTokenFromUrl)} sessionId={publicSession.sessionId} sessionCreatedAt={publicSession.sessionCreatedAt} />}
         </div>
-        <footer><span>View only · updates automatically · link active for 24 hours</span></footer>
+        <footer><span>View only · updates automatically · active until a new session is created</span></footer>
       </div>
     )
   }
@@ -742,16 +885,21 @@ export default function App() {
         {tab === 'setup' && (
           <SetupPanel
             connected={connected}
+            sessionId={SESSION_ID}
+            sessionName={state.sessionName}
             firebaseError={firebaseError}
             courtFee={state.courtFee}
             shuttlePrice={state.shuttlePrice}
             numCourts={numCourts}
             onUpdateSettings={onUpdateSettings}
             onClearSession={clearSession}
+            onNewSession={createNewSession}
             publicShareUrl={publicShareUrl}
-            onCreatePublicShare={createPublicShare}
+            overallShareUrl={overallShareUrl}
             user={user}
             onLogout={handleLogout}
+            clubName={profile?.clubName}
+            onSaveClubName={updateClubName}
           />
         )}
 
@@ -799,6 +947,9 @@ export default function App() {
           <LeaderboardPanel
             players={state.players}
             sessionId={SESSION_ID}
+            overallPlayers={overallPlayers}
+            defaultScope="session"
+            sessionCreatedAt={state.createdAt}
           />
         )}
 
@@ -849,11 +1000,74 @@ function recalculatePlayerStats(players, games) {
   return players.map((player) => ({ ...player, ...statsByPlayer[player.id] }))
 }
 
+function aggregatePlayers(sessionList) {
+  const playersByName = new Map()
+
+  sessionList.forEach((session) => {
+    const players = session?.players || []
+    const namesById = Object.fromEntries(players.map((player) => [player.id, player.name]))
+    players.forEach((player) => {
+      const key = player.name.trim().toLowerCase()
+      if (!key) return
+      if (!playersByName.has(key)) {
+        playersByName.set(key, {
+          ...player,
+          id: key,
+          wins: 0,
+          losses: 0,
+          gamesPlayed: 0,
+          points: 0
+        })
+      }
+    })
+
+    const games = session?.games || []
+    if (games.length === 0) {
+      players.forEach((player) => {
+        const key = player.name.trim().toLowerCase()
+        const aggregate = playersByName.get(key)
+        if (!aggregate) return
+        aggregate.wins += Number(player.wins) || 0
+        aggregate.losses += Number(player.losses) || 0
+        aggregate.gamesPlayed += Number(player.gamesPlayed) || 0
+        aggregate.points += Number(player.points) || 0
+      })
+    }
+
+    games.forEach((game) => {
+      const pointsA = Math.max(0, Number(game.teamAPoints) || 0)
+      const pointsB = Math.max(0, Number(game.teamBPoints) || 0)
+      const updateTeam = (playerIds, points, winningTeam) => playerIds.forEach((playerId) => {
+        const playerName = namesById[playerId]
+        const aggregate = playerName && playersByName.get(playerName.trim().toLowerCase())
+        if (!aggregate) return
+        aggregate.gamesPlayed += 1
+        aggregate.points += points
+        if (game.winner === winningTeam) aggregate.wins += 1
+        else aggregate.losses += 1
+      })
+      updateTeam(game.teamA || [], pointsA, 'A')
+      updateTeam(game.teamB || [], pointsB, 'B')
+    })
+  })
+
+  return [...playersByName.values()]
+}
+
+function mergeSessions(current, incoming, legacySessionId) {
+  const byId = new Map(current.map((session) => [session.id, session]))
+  incoming.forEach((session) => byId.set(session.id, session))
+  return [...byId.values()].filter((session) => (
+    session.id === legacySessionId || session.ownerUid === undefined || session.ownerUid
+  ))
+}
+
 function makePublicSession(data, sessionId, ownerUid) {
   return {
     sessionId,
     ownerUid,
     sessionName: data.sessionName || sessionId,
+    sessionCreatedAt: data.createdAt || null,
     courtFee: data.courtFee || 0,
     shuttlePrice: data.shuttlePrice || 0,
     players: (data.players || []).map(({ id, name, skillLevel, wins, losses, gamesPlayed, points }) => ({
@@ -869,5 +1083,28 @@ function makePublicSession(data, sessionId, ownerUid) {
     matchQueue: data.matchQueue || [],
     courts: (data.courts || []).map(({ id, name, status, teamA, teamB }) => ({ id, name, status, teamA, teamB })),
     games: data.games || []
+  }
+}
+
+function makePublicOverallSession(players, ownerUid, clubName) {
+  return {
+    publicType: 'overall',
+    sessionId: `${ownerUid}-overall`,
+    ownerUid,
+    sessionName: clubName || 'Overall leaderboard',
+    sessionCreatedAt: null,
+    players: players.map(({ id, name, skillLevel, wins, losses, gamesPlayed, points }) => ({
+      id,
+      name: name || '—',
+      skillLevel: skillLevel || null,
+      wins: wins || 0,
+      losses: losses || 0,
+      gamesPlayed: gamesPlayed || 0,
+      points: points || 0
+    })),
+    queue: [],
+    matchQueue: [],
+    courts: [],
+    games: []
   }
 }

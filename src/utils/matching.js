@@ -65,20 +65,28 @@ export function autoMatch(queue, players, strategy = 'fairRotation', games = [])
       partners += partnerCount[key] || 0
     }
 
-    // opponents: count prior opponent pairings among possible cross-team pairs
-    // We'll form teams by skill pairing: highest+lowest vs middle two
-    const sorted = [...combo].sort((a, b) => b.skillLevel - a.skillLevel)
-    const teamA = [sorted[0], sorted[3]]
-    const teamB = [sorted[1], sorted[2]]
+    // Evaluate all unique 2-vs-2 splits. Choosing only highest+lowest vs the
+    // middle two can be badly imbalanced when skill levels cluster.
+    const [first, second, third, fourth] = combo
+    const teamOptions = [
+      [[first, second], [third, fourth]],
+      [[first, third], [second, fourth]],
+      [[first, fourth], [second, third]]
+    ]
+    const skillDifference = ([teamA, teamB]) => Math.abs(
+      teamA.reduce((sum, player) => sum + (player.skillLevel || 0), 0)
+      - teamB.reduce((sum, player) => sum + (player.skillLevel || 0), 0)
+    )
+    const [teamA, teamB] = teamOptions.reduce((bestSplit, split) => (
+      skillDifference(split) < skillDifference(bestSplit) ? split : bestSplit
+    ))
     let opponents = 0
     for (const a of teamA) for (const b of teamB) {
       const key = `${a.id}|${b.id}`
       opponents += opponentCount[key] || 0
     }
 
-    const skillA = teamA.reduce((s, p) => s + (p.skillLevel || 0), 0)
-    const skillB = teamB.reduce((s, p) => s + (p.skillLevel || 0), 0)
-    const skillDiff = Math.abs(skillA - skillB)
+    const skillDiff = skillDifference([teamA, teamB])
 
     const consecutive = combo.reduce((c, p) => c + (lastGamePlayers.has(p.id) ? 1 : 0), 0)
 

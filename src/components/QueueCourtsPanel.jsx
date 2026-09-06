@@ -127,14 +127,12 @@ export default function QueueCourtsPanel({
   const emptyCourts = courts.filter((c) => c.status === 'empty')
   const courtPlayerIds = new Set(courts.flatMap((court) => [...(court.teamA || []), ...(court.teamB || [])]))
   const availableCourtPlayers = players.filter((player) => !courtPlayerIds.has(player.id))
-  const matchPlayerIds = new Set(matchQueue.flatMap((match) => [...(match.teamA || []), ...(match.teamB || [])]))
   const queuedPlayerIds = new Set(queuedPlayers.map((player) => player.id))
-  const autoMatchPlayerCount = queuedPlayers.filter((player) => !courtPlayerIds.has(player.id) && !matchPlayerIds.has(player.id)).length
-  const isManualMatchEligible = (player) => !courtPlayerIds.has(player.id) && !matchPlayerIds.has(player.id)
+  const matchPlayerIds = new Set(matchQueue.flatMap((match) => [...(match.teamA || []), ...(match.teamB || [])]))
   const manualMatchPlayers = [
-    ...queuedPlayers.filter(isManualMatchEligible),
+    ...queuedPlayers,
     ...players
-      .filter((player) => !queuedPlayerIds.has(player.id) && isManualMatchEligible(player))
+      .filter((player) => !queuedPlayerIds.has(player.id))
       .sort((first, second) => first.name.localeCompare(second.name))
   ]
   const activePlayers = players.filter((player) => queue.some((entry) => entry.id === player.id) || courtPlayerIds.has(player.id) || matchPlayerIds.has(player.id))
@@ -463,7 +461,10 @@ export default function QueueCourtsPanel({
             <span>{matchQueue.length} waiting</span>
           </div>
           {matchQueue.length === 0 ? (
-            <div className="match-queue-empty">No matches scheduled</div>
+            <div className="empty-state queue-empty-state">
+              <strong>No matches scheduled</strong>
+              <span>Build a match from the waiting players to see it here.</span>
+            </div>
           ) : (
             <div className="match-queue-items">
               {matchQueue.map((match, index) => (
@@ -557,7 +558,10 @@ export default function QueueCourtsPanel({
             </div>
           </div>
           {activePlayers.length === 0 ? (
-            <div className="empty-state">No players in the queue yet.</div>
+            <div className="empty-state queue-empty-state">
+              <strong>No players in the queue yet.</strong>
+              <span>Add players to the queue to start building matches.</span>
+            </div>
           ) : (
             <div className="queue-grid player-status-items">
               {sortedPlayers.filter((player) => activePlayers.includes(player)).map((player) => {
@@ -631,7 +635,12 @@ export default function QueueCourtsPanel({
                   <small>Available</small>
                 </button>
               ))}
-              {emptyCourts.length === 0 && <div className="empty-state">No courts are available.</div>}
+              {emptyCourts.length === 0 && (
+                <div className="empty-state queue-empty-state">
+                  <strong>No courts are available</strong>
+                  <span>Finish or clear a game to make a court available.</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

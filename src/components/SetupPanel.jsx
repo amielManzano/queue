@@ -1,11 +1,17 @@
 import React, { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
 
-export default function SetupPanel({ sessionId, connected, onConnect, firebaseError, courtFee, shuttlePrice, numCourts, onUpdateSettings, onClearSession, publicShareUrl, onCreatePublicShare, user, onLogout }) {
+export default function SetupPanel({ sessionId, sessionName, connected, onConnect, firebaseError, courtFee, shuttlePrice, numCourts, onUpdateSettings, onClearSession, onNewSession, publicShareUrl, overallShareUrl, user, onLogout, clubName, onSaveClubName }) {
   const [idInput, setIdInput] = useState(sessionId || '')
+  const [clubNameInput, setClubNameInput] = useState(clubName || '')
   const [qrCode, setQrCode] = useState('')
+  const [overallQrCode, setOverallQrCode] = useState('')
   const displayName = user?.displayName || user?.email || ''
   const initial = displayName ? displayName.charAt(0).toUpperCase() : '?'
+
+  useEffect(() => {
+    setClubNameInput(clubName || '')
+  }, [clubName])
 
   useEffect(() => {
     if (!publicShareUrl) {
@@ -14,6 +20,14 @@ export default function SetupPanel({ sessionId, connected, onConnect, firebaseEr
     }
     QRCode.toDataURL(publicShareUrl, { width: 220, margin: 2, color: { dark: '#101b2d', light: '#ffffff' } }).then(setQrCode)
   }, [publicShareUrl])
+
+  useEffect(() => {
+    if (!overallShareUrl) {
+      setOverallQrCode('')
+      return
+    }
+    QRCode.toDataURL(overallShareUrl, { width: 220, margin: 2, color: { dark: '#101b2d', light: '#ffffff' } }).then(setOverallQrCode)
+  }, [overallShareUrl])
 
   return (
     <div className="panel">
@@ -48,12 +62,10 @@ export default function SetupPanel({ sessionId, connected, onConnect, firebaseEr
       ) : (
         <div className="session-toolbar">
           <span className="muted">
-            Session: <strong style={{ color: 'var(--ink)' }}>{sessionId}</strong> — synced live via Firebase
+            Session: <strong style={{ color: 'var(--ink)' }}>{sessionName || sessionId}</strong> — synced live via Firebase
           </span>
           <div className="session-actions">
-            <button className="btn secondary" onClick={onCreatePublicShare}>
-              {publicShareUrl ? 'Generate new QR' : 'Generate QR for public view'}
-            </button>
+            <button className="btn" onClick={onNewSession}>New session</button>
             <button className="btn secondary" onClick={() => onClearSession && onClearSession()}>Clear Session</button>
           </div>
         </div>
@@ -79,13 +91,53 @@ export default function SetupPanel({ sessionId, connected, onConnect, firebaseEr
               <input id="public-session-link" readOnly value={publicShareUrl} onFocus={(e) => e.target.select()} />
               <button className="btn secondary share-copy" onClick={() => navigator.clipboard?.writeText(publicShareUrl)}>Copy link</button>
             </div>
-            <div className="share-expiry"><span>⏱</span> Active for 24 hours</div>
+            <div className="share-expiry"><span>⏱</span> Active until a new session is created</div>
+          </div>
+        </div>
+      )}
+
+      {connected && (
+        <div className="share-box" style={{ marginTop: 14 }}>
+          <div className="qr-preview">
+            {overallQrCode && <img src={overallQrCode} alt="QR code for overall leaderboard" className="session-qr" />}
+            <span>{overallShareUrl ? 'Scan to view overall results' : 'Preparing overall ranking link...'}</span>
+          </div>
+          <div className="share-details">
+            <div className="share-heading">
+              <div>
+                <span className="share-eyebrow">PUBLIC CLUB RANKING</span>
+                <strong>Share overall club ranking</strong>
+              </div>
+            </div>
+            <p className="share-description">Share accumulated club rankings across all sessions.</p>
+            <label className="share-link-label" htmlFor="overall-leaderboard-link">Share link</label>
+            <div className="share-link-row">
+              <input id="overall-leaderboard-link" readOnly value={overallShareUrl || 'Link will appear here'} onFocus={(e) => e.target.select()} />
+              <button
+                className="btn secondary share-copy"
+                onClick={() => overallShareUrl && navigator.clipboard?.writeText(overallShareUrl)}
+                disabled={!overallShareUrl}
+              >
+                Copy link
+              </button>
+            </div>
+            <div className="share-expiry"><span>⏱</span> Active across all sessions</div>
           </div>
         </div>
       )}
 
       {connected && (
         <div className="row" style={{ marginTop: 14 }}>
+          <label>
+            <div className="muted">Club name</div>
+            <input
+              value={clubNameInput}
+              placeholder="e.g. STP Badminton Club"
+              onChange={(e) => setClubNameInput(e.target.value)}
+              onBlur={() => onSaveClubName?.(clubNameInput)}
+              style={{ width: 220, marginTop: 10 }}
+            />
+          </label>
           <label>
             <div className="muted">Court fee (total, ₱)</div>
             <input

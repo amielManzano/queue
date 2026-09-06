@@ -801,6 +801,49 @@ tbody tr:hover td { background: rgba(0,0,0,0.02); }
   }
 }
 
+@media (min-width: 561px) and (max-width: 900px) {
+  .league-head {
+    display: grid;
+    grid-template-columns: minmax(190px, 1fr) minmax(360px, 1.45fr);
+    align-items: start;
+    gap: 16px;
+  }
+
+  .league-head-left {
+    width: auto;
+    min-width: 0;
+  }
+
+  .league-head-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    width: 100%;
+    max-width: none;
+    gap: 8px;
+    justify-content: stretch;
+  }
+
+  .league-date {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+    width: 100%;
+    margin: 0;
+  }
+
+  .league-rank-by,
+  .league-rank-by select {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .league-export-btn {
+    grid-column: 1 / -1;
+    justify-self: end;
+    width: auto;
+  }
+}
+
 /* Courts dashboard redesign. */
 .app-shell[data-theme="dark"] .courts-grid {
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -1877,6 +1920,123 @@ tbody tr:hover td { background: rgba(0,0,0,0.02); }
   letter-spacing: 0.03em;
 }
 
+.league-head-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-top: 0;
+  margin-left: auto;
+  color: rgba(244,246,248,0.5);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.league-head-meta strong {
+  color: rgba(244,246,248,0.82);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+@media (min-width: 561px) and (max-width: 900px) {
+  .league-board .league-head {
+    display: grid !important;
+    grid-template-columns: minmax(180px, 1fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 16px;
+  }
+
+  .league-board .league-head-left {
+    width: auto;
+    min-width: 0;
+  }
+
+  .league-board .league-head-meta {
+    position: absolute;
+    top: 30px;
+    right: 0;
+    z-index: 2;
+    justify-self: end;
+    margin-top: 0;
+  }
+
+  .league-board .league-head-controls {
+    display: flex !important;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    flex-wrap: nowrap;
+    align-items: center;
+    width: 100%;
+    max-width: none;
+    justify-content: flex-start !important;
+    gap: 8px;
+  }
+
+  .league-board .league-rank-by {
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .league-board .league-rank-by select {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .league-board .league-export-btn {
+    flex: 0 0 auto;
+    width: auto;
+    justify-self: end;
+  }
+}
+
+@media (max-width: 560px) {
+  .league-board .league-head {
+    display: block !important;
+    position: relative;
+  }
+
+  .league-board .league-head-left {
+    width: 100%;
+    margin-bottom: 12px;
+  }
+
+  .league-board .league-head-meta {
+    position: absolute;
+    top: 30px;
+    right: 0;
+    width: auto;
+    margin: 0;
+    justify-content: flex-end;
+    z-index: 2;
+  }
+
+  .league-board .league-head-controls {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    width: 100%;
+    max-width: none;
+    justify-content: stretch !important;
+    gap: 8px;
+  }
+
+  .league-board .league-rank-by,
+  .league-board .league-rank-by select {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .league-board .league-export-btn {
+    grid-column: auto;
+    width: auto;
+    justify-self: end;
+    min-height: 30px;
+    padding: 5px 10px;
+  }
+}
+
 .league-date {
   display: inline-flex;
   align-items: baseline;
@@ -2265,6 +2425,147 @@ tbody tr:hover td { background: rgba(0,0,0,0.02); }
   font-size: 17px;
   font-family: 'Archivo Black', 'Inter', sans-serif;
   order: 1;
+}
+@media (max-width: 900px) {
+  .league-head {
+    align-items: stretch;
+    gap: 14px;
+  }
+
+  .league-head-left {
+    width: 100%;
+  }
+
+  .league-head-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    align-items: stretch;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .league-date {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .league-rank-by {
+    min-width: 0;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .league-rank-by select {
+    min-width: 0;
+    width: 100%;
+    text-overflow: ellipsis;
+  }
+
+  .league-export-btn {
+    min-height: 34px;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 560px) {
+  .league-head-controls {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .league-rank-by {
+    padding: 7px 8px;
+  }
+
+  .league-export-btn {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
+
+/* Final responsive alignment for the leaderboard toolbar. */
+@media (min-width: 561px) and (max-width: 900px) {
+  .league-head {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .league-head-left {
+    width: auto;
+    flex: 1 1 auto;
+  }
+
+  .league-head-controls {
+    display: flex;
+    width: auto;
+    max-width: 62%;
+    flex: 0 1 auto;
+    justify-content: flex-end;
+  }
+
+  .league-date {
+    width: auto;
+    justify-content: flex-end;
+  }
+
+  .league-rank-by {
+    width: auto;
+  }
+
+  .league-rank-by select {
+    width: auto;
+    max-width: 170px;
+  }
+}
+
+@media (max-width: 560px) {
+  .league-head {
+    display: block;
+  }
+
+  .league-head-left {
+    margin-bottom: 12px;
+  }
+
+  .league-head-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    max-width: none;
+    gap: 8px;
+  }
+
+  .league-date {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    width: 100%;
+    margin: 0;
+    padding: 0 2px;
+  }
+
+  .league-rank-by {
+    width: 100%;
+    min-width: 0;
+    padding: 7px 8px;
+  }
+
+  .league-rank-by select {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    font-size: 11px;
+  }
+
+  .league-export-btn {
+    grid-column: 1 / -1;
+    justify-self: end;
+    width: auto;
+    min-height: 30px;
+    padding: 5px 10px;
+    font-size: 11px;
+  }
 }
 
 .league-top-stats span {
@@ -3219,6 +3520,25 @@ tbody tr:hover td { background: rgba(0,0,0,0.02); }
   padding: 30px 10px;
   color: var(--muted);
   font-size: 13px;
+}
+
+.queue-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-height: 84px;
+  justify-content: center;
+}
+
+.queue-empty-state strong {
+  color: var(--app-text, #f4f6f8);
+  font-size: 14px;
+}
+
+.queue-empty-state span {
+  color: var(--app-text-muted, var(--muted));
+  font-size: 12px;
 }
 
 .tab-icon {

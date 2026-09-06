@@ -5,10 +5,12 @@ import {
   collection,
   setDoc,
   getDoc,
+  getDocs,
   onSnapshot,
   serverTimestamp,
   query,
-  orderBy
+  orderBy,
+  where
 } from 'firebase/firestore'
 import {
   getAuth,
@@ -89,6 +91,10 @@ export async function getUserProfile(uid) {
 
 export async function createUserProfile(uid, data) {
   return setDoc(userRef(uid), { ...data, createdAt: serverTimestamp() })
+}
+
+export async function updateUserProfile(uid, data) {
+  return setDoc(userRef(uid), data, { merge: true })
 }
 
 // Live list of every registered member, newest first — powers the Clubs
@@ -215,7 +221,8 @@ export async function createPublicSession(token, data) {
     ...data,
     ownerUid: data.ownerUid,
     createdAt: serverTimestamp(),
-    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+    active: true,
+    expiresAt: new Date('9999-12-31T23:59:59.999Z')
   })
 }
 
@@ -223,10 +230,15 @@ export async function savePublicSession(token, data) {
   return setDoc(publicSessionRef(token), data, { merge: true })
 }
 
+export async function expirePublicSession(token) {
+  return setDoc(publicSessionRef(token), { active: false }, { merge: true })
+}
+
 export async function fetchPublicSession(token) {
   const snap = await getDoc(publicSessionRef(token))
   if (!snap.exists()) return null
   const data = snap.data()
+  if (data.active === false) return null
   const expiresAt = data.expiresAt?.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt)
   return expiresAt && expiresAt.getTime() <= Date.now() ? null : data
 }
@@ -238,6 +250,7 @@ export function listenToPublicSession(token, callback, onError) {
     (snap) => {
       if (!snap.exists()) return callback(null)
       const data = snap.data()
+      if (data.active === false) return callback(null)
       const expiresAt = data.expiresAt?.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt)
       callback(expiresAt && expiresAt.getTime() <= Date.now() ? null : data)
     },
@@ -265,6 +278,7 @@ export async function createSession(sessionId, initialState) {
 
   await setDoc(ref, {
     ...initialState,
+    ownerUid: initialState.ownerUid || null,
     createdAt: serverTimestamp()
   })
   return initialState
@@ -293,4 +307,30 @@ export function listenToSession(sessionId, callback, onError) {
 
 export function getSessionsQuery() {
   return query(collection(db, SESSIONS), orderBy('createdAt', 'desc'))
+}
+
+export async function getUserSessions(uid) {
+  const sessions = await getDocs(query(
+    collection(db, SESSIONS),
+    where('ownerUid', '==', uid)
+  ))
+  return sessions.docs
+    .map((item) => ({ id: item.id, ...item.data() }))
+    .sort((a, b) => timestampValue(b.createdAt) - timestampValue(a.createdAt))
+}
+
+export function listenToUserSessions(uid, callback, onError) {
+  return onSnapshot(
+    query(collection(db, SESSIONS), where('ownerUid', '==', uid)),
+    (snap) => callback(snap.docs
+      .map((item) => ({ id: item.id, ...item.data() }))
+      .sort((a, b) => timestampValue(b.createdAt) - timestampValue(a.createdAt))),
+    onError
+  )
+}
+
+function timestampValue(value) {
+  if (!value) return 0
+  if (typeof value.toMillis === 'function') return value.toMillis()
+  return new Date(value).getTime() || 0
 }
