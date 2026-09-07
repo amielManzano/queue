@@ -1766,7 +1766,6 @@ tbody tr:hover td { background: rgba(0,0,0,0.02); }
   display: flex;
   flex-direction: column;
   gap: 14px;
-  margin-top: 10px;
 }
 
 .modern-leaderboard {
@@ -2013,11 +2012,11 @@ tbody tr:hover td { background: rgba(0,0,0,0.02); }
   }
 
   .league-board .league-head-controls {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    display: flex !important;
+    flex-wrap: nowrap;
     width: 100%;
     max-width: none;
-    justify-content: stretch !important;
+    justify-content: flex-start !important;
     gap: 8px;
   }
 
@@ -2028,10 +2027,14 @@ tbody tr:hover td { background: rgba(0,0,0,0.02); }
     max-width: none;
   }
 
+  .league-board .league-rank-by {
+    flex: 1 1 0;
+  }
+
   .league-board .league-export-btn {
-    grid-column: auto;
+    flex: 0 0 auto;
     width: auto;
-    justify-self: end;
+    margin-left: auto;
     min-height: 30px;
     padding: 5px 10px;
   }
@@ -2085,7 +2088,7 @@ tbody tr:hover td { background: rgba(0,0,0,0.02); }
   align-items: end;
   position: relative;
   z-index: 1;
-  margin-top: 52px;
+  margin-top: 56px;
 }
 
 .league-podium-card {
@@ -2131,14 +2134,14 @@ tbody tr:hover td { background: rgba(0,0,0,0.02); }
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-top: -50px;
+  margin-top: -36px;
   padding: 0;
   position: relative;
   z-index: 2;
 }
 
 .league-podium-card.first .league-podium-top {
-  margin-top: -62px;
+  margin-top: -48px;
 }
 
 .league-podium-place {
@@ -3892,7 +3895,7 @@ footer {
 
   .league-podium {
     gap: 10px;
-    margin-top: 44px;
+    margin-top: 56px;
   }
 
   .rank-medal-wrap {
@@ -4027,7 +4030,7 @@ footer {
 
   .league-podium {
     gap: 6px;
-    margin-top: 10px;
+    margin-top: 4px;
   }
 
   .league-podium-card,
@@ -7236,4 +7239,21 @@ footer {
     flex-basis: 28px;
   }
 }
+
+/* Public share pages: the topbar's own border already separates it from
+   the content, so drop the extra top padding that showed up as dead space.
+   !important needed to beat the more specific `.app-shell[data-theme="dark"] .content`
+   breakpoint rules that otherwise set padding-top here. */
+.public-content {
+  padding-top: 0 !important;
+}
+
+.public-content .league-board {
+  padding-top: 0 !important;
+}
+
+.public-content .league-head {
+  margin-bottom: 20px !important;
+}
+
 
