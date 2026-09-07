@@ -92,6 +92,17 @@
 .public-readonly .player-table th:last-child { display: none; }
 .public-readonly .courts-grid,
 .public-readonly .queue-grid { pointer-events: none; }
+.public-readonly .queue-grid.player-status-items { pointer-events: auto !important; }
+/* Nested scroll boxes fight the page scroll on mobile — let the list grow
+   with the page instead of scrolling inside its own small viewport. */
+.app-shell.public-shell-app .public-content .player-status-items {
+  max-height: 50vh !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+}
 .public-readonly .courts-grid + .row,
 .public-readonly .courts-grid ~ .court-card { display: none; }
 .public-readonly .players-toolbar-actions .search-player-input { display: block; }
@@ -993,8 +1004,12 @@ tbody tr:hover td { background: rgba(0,0,0,0.02); }
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 10px;
   max-height: 50vh;
+  min-height: 0;
   padding: 10px 4px 4px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
   scrollbar-color: rgba(255,183,3,0.45) rgba(255,255,255,0.05);
   scrollbar-width: thin;
 }
