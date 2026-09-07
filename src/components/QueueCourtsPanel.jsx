@@ -574,7 +574,7 @@ export default function QueueCourtsPanel({
                       <div className="player-status-avatar">
                         <div className="leader-avatar">{player.name.charAt(0).toUpperCase()}</div>
                         <span className={`player-status-text ${status.tone}`} title={status.label}>
-                          {status.tone === 'playing' ? 'LIVE' : status.matchNumber ? `M${status.matchNumber}` : status.tone === 'waiting' ? 'WAIT' : 'AVAILABLE'}
+                          {status.tone === 'playing' || status.tone === 'ready' ? 'LIVE' : status.matchNumber ? `M${status.matchNumber}` : status.tone === 'waiting' ? 'WAIT' : 'AVAILABLE'}
                         </span>
                       </div>
                       <div className="leader-info">

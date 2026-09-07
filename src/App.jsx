@@ -1081,7 +1081,7 @@ function makePublicSession(data, sessionId, ownerUid) {
     })),
     queue: data.queue || [],
     matchQueue: data.matchQueue || [],
-    courts: (data.courts || []).map(({ id, name, status, teamA, teamB }) => ({ id, name, status, teamA, teamB })),
+    courts: (data.courts || []).map(({ id, name, status, teamA, teamB, matchNumber, startedAt }) => ({ id, name, status, teamA, teamB, matchNumber, startedAt })),
     games: data.games || []
   }
 }
