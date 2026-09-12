@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
 
-export default function SetupPanel({ sessionId, sessionName, connected, onConnect, firebaseError, courtFee, shuttlePrice, numCourts, onUpdateSettings, onClearSession, onNewSession, publicShareUrl, overallShareUrl, user, onLogout, clubName, onSaveClubName }) {
+export default function SetupPanel({ sessionId, sessionName, connected, onConnect, firebaseError, courtFee, shuttlePrice, numCourts, onUpdateSettings, onClearSession, onNewSession, onSeedTestData, onSeedPlayers, publicShareUrl, overallShareUrl, user, onLogout, clubName, onSaveClubName }) {
   const [idInput, setIdInput] = useState(sessionId || '')
   const [clubNameInput, setClubNameInput] = useState(clubName || '')
   const [qrCode, setQrCode] = useState('')
@@ -65,6 +65,8 @@ export default function SetupPanel({ sessionId, sessionName, connected, onConnec
             Session: <strong style={{ color: 'var(--ink)' }}>{sessionName || sessionId}</strong> — synced live via Firebase
           </span>
           <div className="session-actions">
+            {/* {onSeedTestData && <button className="btn secondary" onClick={onSeedTestData}>Load test leaderboard</button>}
+            {onSeedPlayers && <button className="btn secondary" onClick={onSeedPlayers}>Seed Overall players</button>} */}
             <button className="btn" onClick={onNewSession}>New session</button>
             <button className="btn secondary" onClick={() => onClearSession && onClearSession()}>Clear Session</button>
           </div>

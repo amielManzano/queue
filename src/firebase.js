@@ -205,6 +205,7 @@ export function listenToClubs(callback, onError) {
 
 const SESSIONS = 'sessions'
 const PUBLIC_SESSIONS = 'publicSessions'
+const OVERALL_LEADERBOARDS = 'overallLeaderboards'
 
 export function sessionRef(sessionId) {
   if (!sessionId) throw new Error('sessionId is required for sessionRef()')
@@ -216,10 +217,21 @@ export function publicSessionRef(token) {
   return doc(db, PUBLIC_SESSIONS, token)
 }
 
+function withoutUndefined(value) {
+  if (Array.isArray(value)) return value.filter((entry) => entry !== undefined).map(withoutUndefined)
+  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, entry]) => entry !== undefined)
+        .map(([key, entry]) => [key, withoutUndefined(entry)])
+    )
+  }
+  return value
+}
+
 export async function createPublicSession(token, data) {
   return setDoc(publicSessionRef(token), {
-    ...data,
-    ownerUid: data.ownerUid,
+    ...withoutUndefined(data),
     createdAt: serverTimestamp(),
     active: true,
     expiresAt: new Date('9999-12-31T23:59:59.999Z')
@@ -227,7 +239,7 @@ export async function createPublicSession(token, data) {
 }
 
 export async function savePublicSession(token, data) {
-  return setDoc(publicSessionRef(token), data, { merge: true })
+  return setDoc(publicSessionRef(token), withoutUndefined(data), { merge: true })
 }
 
 export async function expirePublicSession(token) {
@@ -277,7 +289,7 @@ export async function createSession(sessionId, initialState) {
   }
 
   await setDoc(ref, {
-    ...initialState,
+    ...withoutUndefined(initialState),
     ownerUid: initialState.ownerUid || null,
     createdAt: serverTimestamp()
   })
@@ -285,7 +297,7 @@ export async function createSession(sessionId, initialState) {
 }
 
 export async function saveSession(sessionId, state) {
-  return setDoc(sessionRef(sessionId), state, { merge: true })
+  return setDoc(sessionRef(sessionId), withoutUndefined(state), { merge: true })
 }
 
 export function listenToSession(sessionId, callback, onError) {
@@ -333,4 +345,22 @@ function timestampValue(value) {
   if (!value) return 0
   if (typeof value.toMillis === 'function') return value.toMillis()
   return new Date(value).getTime() || 0
+}
+
+export function overallLeaderboardRef(uid) {
+  if (!uid) throw new Error('uid is required for overallLeaderboardRef()')
+  return doc(db, OVERALL_LEADERBOARDS, uid)
+}
+
+export async function fetchOverallLeaderboard(uid) {
+  const snap = await getDoc(overallLeaderboardRef(uid))
+  return snap.exists() ? snap.data().players || [] : null
+}
+
+export async function saveOverallLeaderboard(uid, players) {
+  return setDoc(overallLeaderboardRef(uid), {
+    ownerUid: uid,
+    players,
+    updatedAt: serverTimestamp()
+  })
 }

@@ -98,7 +98,7 @@ function RankMedal({ place, tone }) {
   );
 }
 
-export default function LeaderboardPanel({ players: sessionPlayers, overallPlayers = [], overallOnly = false, defaultScope = "session", sessionId, seasonLabel, sessionCreatedAt }) {
+export default function LeaderboardPanel({ players: sessionPlayers, overallPlayers = [], overallOnly = false, sessionOnly = false, defaultScope = "session", sessionId, seasonLabel, sessionCreatedAt }) {
   const exportRef = useRef(null);
   const [exporting, setExporting] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -327,7 +327,7 @@ export default function LeaderboardPanel({ players: sessionPlayers, overallPlaye
               <strong>{displayedDate}</strong>
             </div>
             <div className="league-head-controls">
-              {!overallOnly && <label className="league-rank-by">
+              {!overallOnly && !sessionOnly && <label className="league-rank-by">
                 <select value={scope} onChange={(e) => setScope(e.target.value)} aria-label="Leaderboard scope">
                   <option value="session">Session leaderboard</option>
                   <option value="overall">Overall leaderboard</option>
@@ -363,7 +363,7 @@ export default function LeaderboardPanel({ players: sessionPlayers, overallPlaye
               <strong>{displayedDate}</strong>
             </div>
             <div className="league-head-controls">
-              {!overallOnly && <label className="league-rank-by">
+              {!overallOnly && !sessionOnly && <label className="league-rank-by">
                 <select value={scope} onChange={(e) => setScope(e.target.value)} aria-label="Leaderboard scope">
                   <option value="session">Session leaderboard</option>
                   <option value="overall">Overall leaderboard</option>

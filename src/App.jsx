@@ -26,7 +26,9 @@ import {
   listenToPublicSession,
   createSession,
   listenToUserSessions,
-  getUserSessions
+  getUserSessions,
+  fetchOverallLeaderboard,
+  saveOverallLeaderboard
 } from './firebase.js'
 import settingsIcon from './assets/settings.svg'
 import logo1 from './assets/logo1.png'
@@ -37,6 +39,8 @@ const uid = () => Math.random().toString(36).slice(2, 10)
 // Each signed-in user gets exactly one private session, keyed by their own
 // uid, so different accounts can never see or overwrite each other's data.
 const storageKey = (userId) => `stp-session-data:${userId}`
+const activeSessionKey = (userId) => `stp-active-session:${userId}`
+const overallStorageKey = (userId) => `stp-overall-leaderboard:${userId}`
 const publicTokenFromUrl = new URLSearchParams(window.location.search).get('public')
 const publicOverallTokenFromUrl = new URLSearchParams(window.location.search).get('publicOverall')
 const SCREENSHOT_OVERALL_TOKEN = '26bb2029686c49aa9d09'
@@ -61,6 +65,16 @@ const screenshotSessionData = [
     id: name.toLowerCase(), name, wins, losses, gamesPlayed, points
   })),
   games: []
+}))
+
+const testSeedPlayers = [
+  ['Earl', 3, 1, 4, 99], ['Melvin', 4, 0, 4, 94], ['Takayuki', 3, 1, 4, 85],
+  ['Hayate', 3, 1, 4, 75], ['Faye', 3, 2, 5, 114], ['Misaki', 2, 1, 3, 71],
+  ['Yuki', 4, 0, 4, 94], ['Riz', 2, 2, 4, 96], ['Rino', 2, 2, 4, 91],
+  ['Mizuki', 2, 2, 4, 89], ['Sumire', 2, 2, 4, 70], ['Shai', 2, 3, 5, 118],
+  ['Luz', 2, 3, 5, 104], ['Jonas', 0, 5, 5, 100], ['Tomoya', 0, 5, 5, 98]
+].map(([name, wins, losses, gamesPlayed, points]) => ({
+  id: name.toLowerCase(), name, skillLevel: 3, wins, losses, gamesPlayed, points
 }))
 
 function makeCourts(n, existing = []) {
@@ -115,6 +129,17 @@ function hasRealData(data) {
   )
 }
 
+function readSavedOverall(userId) {
+  if (!userId) return null
+  try {
+    const raw = localStorage.getItem(overallStorageKey(userId))
+    const players = raw ? JSON.parse(raw) : null
+    return Array.isArray(players) ? players : null
+  } catch (err) {
+    return null
+  }
+}
+
 export default function App() {
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
@@ -124,6 +149,8 @@ export default function App() {
   const [profile, setProfile] = useState(null)
   const [sessionId, setSessionId] = useState(null)
   const [sessions, setSessions] = useState([])
+  const [completedSessions, setCompletedSessions] = useState([])
+  const [overallLeaderboardPlayers, setOverallLeaderboardPlayers] = useState(null)
   const [tab, setTab] = useState('players')
   const [connected, setConnected] = useState(false)
   const [firebaseError, setFirebaseError] = useState('')
@@ -160,6 +187,8 @@ export default function App() {
         setProfile(null)
         setSessionId(null)
         setSessions([])
+        setCompletedSessions([])
+        setOverallLeaderboardPlayers(null)
         setIsAdmin(false)
         setAuthLoading(false)
         setAuthChecking(false)
@@ -200,20 +229,42 @@ export default function App() {
           }
         }
 
+        let activeSessionId = u.uid
+        try {
+          activeSessionId = profile.activeSessionId || localStorage.getItem(activeSessionKey(u.uid)) || u.uid
+        } catch (err) {}
+
         if (profile.overallShareToken) {
           try {
-            const legacySession = await fetchSession(u.uid)
-            const ownedSessions = await getUserSessions(u.uid)
+            let localOverall = null
+            try {
+              const raw = localStorage.getItem(overallStorageKey(u.uid))
+              localOverall = raw ? JSON.parse(raw) : null
+            } catch (err) {}
+            let savedOverallPlayers = null
+            try {
+              savedOverallPlayers = await fetchOverallLeaderboard(u.uid)
+            } catch (err) {
+              console.error('Dedicated overall leaderboard unavailable:', err)
+            }
+            let savedOverall = null
+            if (!savedOverallPlayers) {
+              try {
+                savedOverall = await fetchPublicSession(profile.overallShareToken)
+              } catch (err) {
+                console.error('Public overall leaderboard unavailable:', err)
+              }
+            }
             const overallPlayers = profile.overallShareToken === SCREENSHOT_OVERALL_TOKEN
               ? aggregatePlayers(screenshotSessionData)
-              : aggregatePlayers([
-                ...ownedSessions.filter((session) => session.id !== u.uid),
-                ...(legacySession ? [{ id: u.uid, ...legacySession }] : [])
-              ])
-            await savePublicSession(
-              profile.overallShareToken,
-              makePublicOverallSession(overallPlayers, u.uid, profile.clubName)
-            )
+              : Array.isArray(localOverall)
+                ? localOverall
+                : Array.isArray(savedOverallPlayers)
+                  ? savedOverallPlayers
+                  : savedOverall?.publicType === 'overall' && Array.isArray(savedOverall.players)
+                    ? savedOverall.players
+                    : profile.overallLeaderboard || []
+            setOverallLeaderboardPlayers(overallPlayers)
           } catch (err) {
             console.error('Failed to populate overall leaderboard history:', err)
           }
@@ -222,7 +273,7 @@ export default function App() {
         setAuthError('')
         setUser(u)
         setProfile(profile)
-        setSessionId((current) => current || u.uid)
+        setSessionId((current) => current || activeSessionId)
         isSuperAdmin(u.uid).then(setIsAdmin).catch(() => setIsAdmin(false))
       } catch (err) {
         console.error('Post sign-in verification failed:', err)
@@ -394,8 +445,15 @@ export default function App() {
     if (!confirm('Clear all of your session data? This cannot be undone.')) return
     // Keep the player roster, but reset their per-session stats since
     // games/shuttles/payments are all derived from games + gamesPlayed.
-    const resetPlayers = state.players.map((p) => ({ ...p, wins: 0, losses: 0, gamesPlayed: 0 }))
-    const cleared = { ...initialState, players: resetPlayers }
+    const resetPlayers = state.players.map((p) => ({ ...p, wins: 0, losses: 0, gamesPlayed: 0, points: 0 }))
+    const cleared = {
+      ...state,
+      players: resetPlayers,
+      queue: [],
+      matchQueue: [],
+      courts: makeCourts(state.numCourts),
+      games: []
+    }
     clearLocal()
     setState(cleared)
     saveSession(SESSION_ID, cleared).catch((err) => {
@@ -426,6 +484,7 @@ export default function App() {
   }
 
   const createNewSession = async () => {
+    window.alert('The current session leaderboard will be added to the overall leaderboard before this session is reset.')
     const name = `Session ${new Date().toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -434,19 +493,104 @@ export default function App() {
       minute: '2-digit'
     })}`
     const nextId = `${user.uid}-${Date.now().toString(36)}`
-    const nextState = { ...initialState, sessionName: name, ownerUid: user.uid }
+    const resetPlayers = state.players.map((player) => ({
+      ...player,
+      wins: 0,
+      losses: 0,
+      gamesPlayed: 0,
+      points: 0
+    }))
+    const nextState = { ...initialState, players: resetPlayers, sessionName: name, ownerUid: user.uid }
     try {
+      const finishedState = { ...state, ownerUid: user.uid }
+      await saveSession(SESSION_ID, finishedState)
+      const ownedSessions = await getUserSessions(user.uid).catch(() => [])
+      const overallHistory = [
+        ...ownedSessions.filter((session) => session.id !== SESSION_ID),
+        { ...finishedState, id: SESSION_ID }
+      ]
+      const finishedSessionPlayers = aggregatePlayers([{ ...finishedState, id: SESSION_ID }])
+      const previousOverallPlayers = readSavedOverall(user.uid) || overallLeaderboardPlayers || aggregatePlayers(
+        overallHistory.filter((session) => session.id !== SESSION_ID)
+      )
+      const finishedOverallPlayers = addPlayerStats(previousOverallPlayers, finishedSessionPlayers)
+      try {
+        localStorage.setItem(overallStorageKey(user.uid), JSON.stringify(finishedOverallPlayers))
+      } catch (err) {}
+      setOverallLeaderboardPlayers(finishedOverallPlayers)
+      await saveOverallLeaderboard(user.uid, finishedOverallPlayers)
+        .catch((err) => console.error('Failed to persist dedicated overall leaderboard:', err))
+      if (profile?.overallShareToken) {
+        await savePublicSession(
+          profile.overallShareToken,
+          makePublicOverallSession(finishedOverallPlayers, user.uid, profile.clubName)
+        ).catch((err) => console.error('Failed to persist public overall leaderboard:', err))
+      }
       if (state.shareToken) await expirePublicSession(state.shareToken)
       await createSession(nextId, nextState)
-      const ownedSessions = await getUserSessions(user.uid).catch(() => [])
-      setSessions((current) => mergeSessions(current, ownedSessions, user.uid))
+      await updateUserProfile(user.uid, {
+        activeSessionId: nextId,
+        overallLeaderboard: finishedOverallPlayers
+      }).catch((err) => console.error('Failed to persist overall leaderboard profile:', err))
+      if (profile?.overallShareToken) {
+        await savePublicSession(
+          profile.overallShareToken,
+          makePublicOverallSession(finishedOverallPlayers, user.uid, profile.clubName)
+        ).catch((err) => console.error('Failed to finalize public overall leaderboard:', err))
+      }
+      setSessions((current) => mergeSessions(current, overallHistory, user.uid))
+      setCompletedSessions((current) => mergeSessions(current, [{ ...finishedState, id: SESSION_ID }], user.uid))
       setConnected(false)
       setState(nextState)
       setSessionId(nextId)
+      setProfile((current) => ({ ...current, activeSessionId: nextId, overallLeaderboard: finishedOverallPlayers }))
+      try { localStorage.setItem(activeSessionKey(user.uid), nextId) } catch (err) {}
       setTab('setup')
     } catch (err) {
       console.error('Failed to create session:', err)
       setFirebaseError('Could not create the new session.')
+    }
+  }
+
+  const seedCurrentSession = async () => {
+    if (!SESSION_ID || !confirm('Replace this session with the leaderboard test data?')) return
+    const seededState = {
+      ...state,
+      players: testSeedPlayers,
+      queue: [],
+      matchQueue: [],
+      courts: makeCourts(state.numCourts),
+      games: []
+    }
+    setState(seededState)
+    try {
+      await saveSession(SESSION_ID, seededState)
+    } catch (err) {
+      console.error('Failed to save test session data:', err)
+      setFirebaseError('Could not save the test session data.')
+    }
+  }
+
+  const seedPlayersOnly = async () => {
+    if (!SESSION_ID || !confirm('Add all Overall leaderboard players to this session?')) return
+    const normalizeSkill = (player) => ({
+      ...player,
+      skillLevel: Number(player.skillLevel) >= 1 && Number(player.skillLevel) <= 5
+        ? Number(player.skillLevel)
+        : 1
+    })
+    const existingByName = new Map(state.players.map((player) => [player.name.trim().toLowerCase(), normalizeSkill(player)]))
+    const players = [...existingByName.values()]
+    overallPlayers.forEach((player) => {
+      if (!existingByName.has(player.name.toLowerCase())) players.push(normalizeSkill(player))
+    })
+    const nextState = { ...state, players }
+    setState(nextState)
+    try {
+      await saveSession(SESSION_ID, nextState)
+    } catch (err) {
+      console.error('Failed to save seeded players:', err)
+      setFirebaseError('Could not save the seeded players.')
     }
   }
 
@@ -710,14 +854,24 @@ export default function App() {
     const court = state.courts.find((c) => c.id === courtId)
     if (!court) return
 
+    const pointsA = Math.max(0, Number(teamAPoints) || 0)
+    const pointsB = Math.max(0, Number(teamBPoints) || 0)
+    const winnerPoints = winner === 'A' ? pointsA : pointsB
+    const loserPoints = winner === 'A' ? pointsB : pointsA
+
+    if (winnerPoints < loserPoints) {
+      window.alert('The selected winner has a lower score than the losing team. Please check the scores.')
+      return
+    }
+
     const game = {
       id: uid(),
       courtId,
       teamA: court.teamA,
       teamB: court.teamB,
       winner,
-      teamAPoints: Math.max(0, Number(teamAPoints) || 0),
-      teamBPoints: Math.max(0, Number(teamBPoints) || 0),
+      teamAPoints: pointsA,
+      teamBPoints: pointsB,
       shuttlesUsed,
       shuttlePrice: state.shuttlePrice,
       timestamp: Date.now()
@@ -725,8 +879,6 @@ export default function App() {
 
     const winners = winner === 'A' ? court.teamA : court.teamB
     const losers = winner === 'A' ? court.teamB : court.teamA
-    const pointsA = Math.max(0, Number(teamAPoints) || 0)
-    const pointsB = Math.max(0, Number(teamBPoints) || 0)
 
     const players = state.players.map((p) => {
       if (winners.includes(p.id)) {
@@ -764,6 +916,7 @@ export default function App() {
         ...returningPlayers.map((playerId) => ({ id: playerId, queuedAt: Date.now() }))
       ]
     })
+
   }
 
   const editGame = (updatedGame) => {
@@ -772,20 +925,15 @@ export default function App() {
   }
 
   const numCourts = state.numCourts
-  const overallPlayers = profile?.overallShareToken === SCREENSHOT_OVERALL_TOKEN
-    ? aggregatePlayers(screenshotSessionData)
-    : aggregatePlayers([
-      ...sessions.filter((item) => item.id !== SESSION_ID),
-      { ...state, id: SESSION_ID }
-    ])
-  useEffect(() => {
-    if (!connected || !profile?.overallShareToken) return
-    savePublicSession(
-      profile.overallShareToken,
-      makePublicOverallSession(overallPlayers, user.uid, profile.clubName)
-    ).catch((err) => console.error('Overall public leaderboard update failed:', err))
-  }, [connected, profile?.overallShareToken, overallPlayers, user?.uid, profile?.clubName])
-
+  const localOverallPlayers = readSavedOverall(user?.uid)
+  const overallPlayers = localOverallPlayers || overallLeaderboardPlayers || (!user
+    ? []
+    : profile?.overallShareToken === SCREENSHOT_OVERALL_TOKEN
+      ? aggregatePlayers(screenshotSessionData)
+      : aggregatePlayers([
+        ...mergeSessions(sessions, completedSessions, user.uid).filter((item) => item.id !== SESSION_ID),
+        { ...state, id: SESSION_ID }
+      ]))
   useEffect(() => {
     if (!connected || !user || !profile || profile.overallShareToken || overallShareCreating.current) return
     overallShareCreating.current = true
@@ -828,7 +976,7 @@ export default function App() {
         <div className="content public-content public-readonly">
           {!publicOverallTokenFromUrl && publicTab === 'queue' && <QueueCourtsPanel {...publicProps} pendingMatch={null} readOnly />}
           {!publicOverallTokenFromUrl && publicTab === 'history' && <MatchHistoryPanel games={publicProps.games} players={publicProps.players} readOnly />}
-          {publicTab === 'leaderboard' && <LeaderboardPanel players={publicOverallTokenFromUrl ? [] : publicProps.players} overallPlayers={publicOverallTokenFromUrl ? publicProps.players : []} overallOnly={Boolean(publicOverallTokenFromUrl)} sessionId={publicSession.sessionId} sessionCreatedAt={publicSession.sessionCreatedAt} />}
+          {publicTab === 'leaderboard' && <LeaderboardPanel players={publicOverallTokenFromUrl ? [] : publicProps.players} overallPlayers={publicOverallTokenFromUrl ? publicProps.players : []} overallOnly={Boolean(publicOverallTokenFromUrl)} sessionOnly={!publicOverallTokenFromUrl} sessionId={publicSession.sessionId} sessionCreatedAt={publicSession.sessionCreatedAt} />}
         </div>
         <footer><span>View only · updates automatically · active until a new session is created</span></footer>
       </div>
@@ -894,6 +1042,8 @@ export default function App() {
             onUpdateSettings={onUpdateSettings}
             onClearSession={clearSession}
             onNewSession={createNewSession}
+            onSeedTestData={seedCurrentSession}
+            onSeedPlayers={seedPlayersOnly}
             publicShareUrl={publicShareUrl}
             overallShareUrl={overallShareUrl}
             user={user}
@@ -1049,6 +1199,26 @@ function aggregatePlayers(sessionList) {
       updateTeam(game.teamA || [], pointsA, 'A')
       updateTeam(game.teamB || [], pointsB, 'B')
     })
+  })
+
+  return [...playersByName.values()]
+}
+
+function addPlayerStats(existingPlayers, sessionPlayers) {
+  const playersByName = new Map(existingPlayers.map((player) => [player.name.trim().toLowerCase(), { ...player }]))
+
+  sessionPlayers.forEach((player) => {
+    const key = player.name.trim().toLowerCase()
+    if (!key) return
+    const existing = playersByName.get(key)
+    if (!existing) {
+      playersByName.set(key, { ...player, id: key })
+      return
+    }
+    existing.wins += Number(player.wins) || 0
+    existing.losses += Number(player.losses) || 0
+    existing.gamesPlayed += Number(player.gamesPlayed) || 0
+    existing.points += Number(player.points) || 0
   })
 
   return [...playersByName.values()]
