@@ -9,35 +9,62 @@ function DoneGameModal({ court, playerName, defaultShuttlePrice, onConfirm, onCl
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Finish {court.name}</h3>
-        <div className="muted" style={{ marginBottom: 12 }}>
-          {court.teamA.map(playerName).join(' & ')} vs {court.teamB.map(playerName).join(' & ')}
+      <div className="modal finish-game-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="finish-game-heading">
+          <span className="finish-game-kicker">Match result</span>
+          <h3>Finish {court.name}</h3>
         </div>
-
-        <div style={{ marginBottom: 12 }}>
-          <div className="muted" style={{ marginBottom: 6 }}>Winning team</div>
-          <div className="row">
-            <button
-              className={winner === 'A' ? 'btn gold' : 'btn secondary'}
-              onClick={() => setWinner('A')}
-            >
-              Team A
-            </button>
-            <button
-              className={winner === 'B' ? 'btn gold' : 'btn secondary'}
-              onClick={() => setWinner('B')}
-            >
-              Team B
-            </button>
+        <div className="finish-game-court-preview">
+          <div className="court-surface" aria-label={`${court.name} court view`}>
+            <div className="court-players team-a">
+              {court.teamA.map((id) => (
+                <div className="court-player" key={id}>
+                  <div>
+                    <div className="court-avatar">{playerName(id).charAt(0).toUpperCase()}</div>
+                    <div className="court-player-name" title={playerName(id)}>{playerName(id)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="court-players team-b">
+              {court.teamB.map((id) => (
+                <div className="court-player" key={id}>
+                  <div>
+                    <div className="court-player-name" title={playerName(id)}>{playerName(id)}</div>
+                    <div className="court-avatar">{playerName(id).charAt(0).toUpperCase()}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="finish-game-team-names">
+            <div className="finish-game-team team-a">
+              <span className="finish-game-team-label">Team A</span>
+              <button
+                className={`btn finish-game-winner-button ${winner === 'A' ? 'gold' : 'secondary'}`}
+                onClick={() => setWinner('A')}
+              >
+                {winner === 'A' ? 'Winning team' : 'Losing team'}
+              </button>
+            </div>
+            <div className="finish-game-team team-b">
+              <span className="finish-game-team-label">Team B</span>
+              <button
+                className={`btn finish-game-winner-button ${winner === 'B' ? 'gold' : 'secondary'}`}
+                onClick={() => setWinner('B')}
+              >
+                {winner === 'B' ? 'Winning team' : 'Losing team'}
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="row" style={{ marginBottom: 16 }}>
-          <label>
+        <div className="finish-game-points finish-game-section" style={{ marginBottom: 16 }}>
+          <label className="finish-game-points-team-a">
             <div className="muted" style={{ marginBottom: 6 }}>Team A points</div>
             <input
               type="number"
+              inputMode="numeric"
               min="0"
               step="1"
               value={teamAPoints}
@@ -45,10 +72,11 @@ function DoneGameModal({ court, playerName, defaultShuttlePrice, onConfirm, onCl
               style={{ width: 90 }}
             />
           </label>
-          <label>
+          <label className="finish-game-points-team-b">
             <div className="muted" style={{ marginBottom: 6 }}>Team B points</div>
             <input
               type="number"
+              inputMode="numeric"
               min="0"
               step="1"
               value={teamBPoints}
@@ -58,13 +86,23 @@ function DoneGameModal({ court, playerName, defaultShuttlePrice, onConfirm, onCl
           </label>
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <div className="muted" style={{ marginBottom: 6 }}>Shuttles used this game</div>
-          <input type="number" min="0" step="1" value={shuttles} onChange={(e) => setShuttles(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))} style={{ width: 90 }} />
-          <span className="muted" style={{ marginLeft: 8 }}>× ₱{defaultShuttlePrice} ÷ 4 players</span>
+        <div className="finish-game-shuttles finish-game-section" style={{ marginBottom: 16 }}>
+          <div className="finish-game-shuttle-heading">
+            <div className="muted">Shuttles used</div>
+            <span className="finish-game-shuttle-rate">₱{defaultShuttlePrice} each</span>
+          </div>
+          <div className="finish-game-shuttle-control">
+            <div className="finish-game-shuttle-stepper">
+              <button type="button" aria-label="Remove one shuttle" onClick={() => setShuttles(Math.max(0, Number(shuttles) - 1))}>−</button>
+              <input type="number" inputMode="numeric" min="0" step="1" value={shuttles} onChange={(e) => setShuttles(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))} />
+              <button type="button" aria-label="Add one shuttle" onClick={() => setShuttles(Number(shuttles || 0) + 1)}>+</button>
+            </div>
+            <span>shuttles</span>
+          </div>
+          <div className="finish-game-shuttle-note">Cost is split between 4 players</div>
         </div>
 
-        <div className="row" style={{ justifyContent: 'flex-end' }}>
+        <div className="row finish-game-actions" style={{ justifyContent: 'flex-end' }}>
           <button className="btn secondary" onClick={onClose}>Cancel</button>
           <button className="btn" onClick={() => onConfirm(winner, shuttles, teamAPoints, teamBPoints)}>Confirm & Clear Court</button>
         </div>
