@@ -76,3 +76,38 @@ payment = (court fee ÷ number of players who played)
 - If you'd rather not set up Firebase yet, the app still runs
   fully locally in a single browser tab (state just won't sync
   across devices or survive a refresh) — useful for testing.
+
+## Restoring a leaderboard from the supplied images
+
+Sign in as `manzano.amiel.e@gmail.com` and use **Replace ranking with these 5 images**
+in the Session setup. The confirmation replaces that account's existing
+session and overall leaderboard data, but preserves its sign-in and
+permanent overall QR token. It creates a fresh session containing all
+imported players with zero session stats; the image stats are stored in
+the overall leaderboard. Only the five selected September leaderboard
+images are included; earlier supplied images are excluded.
+
+The data shared by the button and the maintenance script is in
+`src/utils/imageLeaderboardData.js`.
+
+Authenticate Firebase Admin locally with Application Default
+Credentials (for example, `gcloud auth application-default login` using
+an account with access to this Firebase project), then preview the exact
+imported totals:
+
+```sh
+npm run restore:image-leaderboard -- --email member@example.com
+```
+
+Only after checking the preview, run the same command with `--apply` to
+replace that account's data. Do not commit service-account credentials.
+On the account's next sign-in, stale browser-cached session and overall
+data are cleared using the reset marker written by the import.
+
+The in-app import lists the signed-in account's session documents before
+archiving them. If Firestore rules are changed, deploy the updated session
+owner-list rule together with the app:
+
+```sh
+firebase deploy --only firestore:rules
+```

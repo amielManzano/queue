@@ -10,7 +10,8 @@ service cloud.firestore {
           || request.auth.uid == sessionId
           || resource.data.ownerUid == request.auth.uid
         );
-      allow list: if false;
+      allow list: if request.auth != null
+        && resource.data.ownerUid == request.auth.uid;
       allow create: if request.auth != null
         && (request.auth.uid == sessionId || request.resource.data.ownerUid == request.auth.uid);
       allow update: if request.auth != null

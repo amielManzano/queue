@@ -7,6 +7,7 @@ import MatchHistoryPanel from './components/MatchHistoryPanel.jsx'
 import LoginPanel from './components/LoginPanel.jsx'
 import ClubsPanel from './components/ClubsPanel.jsx'
 import { autoMatch } from './utils/matching.js'
+import { imageLeaderboardPlayers } from './utils/imageLeaderboardData.js'
 import {
   fetchSession,
   listenToSession,
@@ -41,9 +42,28 @@ const uid = () => Math.random().toString(36).slice(2, 10)
 const storageKey = (userId) => `stp-session-data:${userId}`
 const activeSessionKey = (userId) => `stp-active-session:${userId}`
 const overallStorageKey = (userId) => `stp-overall-leaderboard:${userId}`
+const accountDataResetKey = (userId) => `stp-account-data-reset:${userId}`
 const publicTokenFromUrl = new URLSearchParams(window.location.search).get('public')
 const publicOverallTokenFromUrl = new URLSearchParams(window.location.search).get('publicOverall')
 const SCREENSHOT_OVERALL_TOKEN = '26bb2029686c49aa9d09'
+
+function clearUserCachedData(userId) {
+  const sessionPrefix = storageKey(userId)
+  const sessionKeys = []
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index)
+    if (key === sessionPrefix || key?.startsWith(`${sessionPrefix}-`)) sessionKeys.push(key)
+  }
+  sessionKeys.forEach((key) => localStorage.removeItem(key))
+  localStorage.removeItem(activeSessionKey(userId))
+  localStorage.removeItem(overallStorageKey(userId))
+}
+
+function resetTimestampValue(value) {
+  if (!value) return 0
+  if (typeof value.toMillis === 'function') return value.toMillis()
+  return new Date(value).getTime() || 0
+}
 
 const screenshotSessionData = [
   [
@@ -154,6 +174,8 @@ export default function App() {
   const [tab, setTab] = useState('players')
   const [connected, setConnected] = useState(false)
   const [firebaseError, setFirebaseError] = useState('')
+  const [imageImporting, setImageImporting] = useState(false)
+  const [imageImportStage, setImageImportStage] = useState('')
   const [state, setState] = useState(initialState)
   const [pendingMatch, setPendingMatch] = useState(null)
   const [publicSession, setPublicSession] = useState(null)
@@ -161,6 +183,7 @@ export default function App() {
   const [publicTab, setPublicTab] = useState(publicOverallTokenFromUrl ? 'leaderboard' : 'queue')
   const skipNextSave = useRef(false)
   const overallShareCreating = useRef(false)
+  const sessionFinalizing = useRef(false)
 
   useEffect(() => {
     const token = publicTokenFromUrl || publicOverallTokenFromUrl
@@ -216,6 +239,23 @@ export default function App() {
           setAuthError('No account found for this sign-in. Create an account with a valid access code first.')
           setUser(null)
           return
+        }
+
+        const resetAt = resetTimestampValue(profile.accountDataResetAt)
+        if (resetAt) {
+          try {
+            const appliedResetAt = localStorage.getItem(accountDataResetKey(u.uid))
+            if (appliedResetAt !== String(resetAt)) {
+              clearUserCachedData(u.uid)
+              localStorage.setItem(accountDataResetKey(u.uid), String(resetAt))
+            }
+          } catch (err) {
+            console.error('Failed to clear stale account data from this browser:', err)
+            setAuthError('Could not clear stale data on this device. Please enable browser storage and sign in again.')
+            setAuthLoading(false)
+            setAuthChecking(false)
+            return
+          }
         }
 
         if (!profile.overallShareToken) {
@@ -484,6 +524,7 @@ export default function App() {
   }
 
   const createNewSession = async () => {
+    sessionFinalizing.current = true
     window.alert('The current session leaderboard will be added to the overall leaderboard before this session is reset.')
     const name = `Session ${new Date().toLocaleString('en-US', {
       month: 'short',
@@ -517,7 +558,6 @@ export default function App() {
       try {
         localStorage.setItem(overallStorageKey(user.uid), JSON.stringify(finishedOverallPlayers))
       } catch (err) {}
-      setOverallLeaderboardPlayers(finishedOverallPlayers)
       await saveOverallLeaderboard(user.uid, finishedOverallPlayers)
         .catch((err) => console.error('Failed to persist dedicated overall leaderboard:', err))
       if (profile?.overallShareToken) {
@@ -540,15 +580,154 @@ export default function App() {
       }
       setSessions((current) => mergeSessions(current, overallHistory, user.uid))
       setCompletedSessions((current) => mergeSessions(current, [{ ...finishedState, id: SESSION_ID }], user.uid))
+      sessionFinalizing.current = false
       setConnected(false)
       setState(nextState)
       setSessionId(nextId)
+      setOverallLeaderboardPlayers(finishedOverallPlayers)
       setProfile((current) => ({ ...current, activeSessionId: nextId, overallLeaderboard: finishedOverallPlayers }))
       try { localStorage.setItem(activeSessionKey(user.uid), nextId) } catch (err) {}
       setTab('setup')
     } catch (err) {
+      sessionFinalizing.current = false
       console.error('Failed to create session:', err)
       setFirebaseError('Could not create the new session.')
+    }
+  }
+
+  const importImageLeaderboard = async () => {
+    const targetEmail = 'manzano.amiel.e@gmail.com'
+    if (user?.email?.toLowerCase() !== targetEmail || !SESSION_ID || imageImporting) return
+    const confirmed = window.confirm(
+      `Replace all existing session and overall-ranking data for ${targetEmail} with the totals from the 10 attached images? ` +
+      'Your account and permanent overall QR will be kept. This cannot be undone.'
+    )
+    if (!confirmed) return
+
+    setImageImporting(true)
+    let importStage = 'Loading existing account sessions'
+    setImageImportStage(importStage)
+    setFirebaseError('')
+    let coreImportSaved = false
+    const updateImportStage = (stage) => {
+      importStage = stage
+      setImageImportStage(stage)
+    }
+    try {
+      const [ownedSessions, legacySession, activeSession] = await Promise.all([
+        getUserSessions(user.uid),
+        fetchSession(user.uid),
+        fetchSession(SESSION_ID)
+      ])
+      const sessionsById = new Map(ownedSessions.map((session) => [session.id, session]))
+      if (legacySession) sessionsById.set(user.uid, { id: user.uid, ...legacySession })
+      if (activeSession) sessionsById.set(SESSION_ID, { id: SESSION_ID, ...activeSession })
+
+      const overallShareToken = profile?.overallShareToken
+        || crypto.randomUUID?.().replaceAll('-', '').slice(0, 20)
+        || Math.random().toString(36).slice(2, 22)
+      const nextId = `${user.uid}-image-import-${Date.now().toString(36)}`
+      const sessionShareToken = crypto.randomUUID?.().replaceAll('-', '').slice(0, 20)
+        || Math.random().toString(36).slice(2, 22)
+      const importedPlayers = imageLeaderboardPlayers.map((player) => ({
+        ...player,
+        skillLevel: 3,
+        wins: 0,
+        losses: 0,
+        gamesPlayed: 0,
+        points: 0
+      }))
+      const importedSession = {
+        ...initialState,
+        sessionName: 'Image data import',
+        ownerUid: user.uid,
+        players: importedPlayers,
+        shareToken: sessionShareToken
+      }
+      const accountDataResetAt = new Date().toISOString()
+
+      updateImportStage('Saving the new current session')
+      await saveSession(nextId, importedSession)
+      updateImportStage('Saving the overall ranking')
+      await saveOverallLeaderboard(user.uid, imageLeaderboardPlayers)
+      updateImportStage('Updating the permanent overall QR')
+      await createPublicSession(
+        overallShareToken,
+        makePublicOverallSession(imageLeaderboardPlayers, user.uid, profile?.clubName)
+      )
+      updateImportStage('Creating the new current-session QR')
+      await createPublicSession(
+        sessionShareToken,
+        makePublicSession(importedSession, nextId, user.uid)
+      )
+      updateImportStage('Updating the account profile')
+      await updateUserProfile(user.uid, {
+        activeSessionId: nextId,
+        overallShareToken,
+        overallLeaderboard: imageLeaderboardPlayers,
+        accountDataResetAt
+      })
+      coreImportSaved = true
+
+      sessionFinalizing.current = false
+      try {
+        sessionsById.forEach((_, oldId) => localStorage.removeItem(storageKey(oldId)))
+        clearUserCachedData(user.uid)
+        localStorage.setItem(accountDataResetKey(user.uid), String(Date.parse(accountDataResetAt)))
+        localStorage.setItem(overallStorageKey(user.uid), JSON.stringify(imageLeaderboardPlayers))
+        localStorage.setItem(activeSessionKey(user.uid), nextId)
+      } catch (storageError) {
+        console.warn('Could not fully refresh local account cache after image import:', storageError)
+      }
+      setOverallLeaderboardPlayers(imageLeaderboardPlayers)
+      setProfile((current) => ({
+        ...current,
+        activeSessionId: nextId,
+        overallShareToken,
+        overallLeaderboard: imageLeaderboardPlayers,
+        accountDataResetAt
+      }))
+      setConnected(false)
+      setState(importedSession)
+      setSessionId(nextId)
+      setTab('setup')
+
+      updateImportStage('Archiving old sessions')
+      const cleanupResults = await Promise.allSettled([...sessionsById.entries()].map(async ([oldId, oldSession]) => {
+        const archivedSession = {
+          ...oldSession,
+          ownerUid: user.uid,
+          sessionName: 'Archived after image import',
+          players: [],
+          queue: [],
+          matchQueue: [],
+          courts: [],
+          games: [],
+          shareToken: null
+        }
+        await saveSession(oldId, archivedSession)
+        if (oldSession.shareToken) await expirePublicSession(oldSession.shareToken)
+      }))
+      const cleanupFailures = cleanupResults.filter((result) => result.status === 'rejected')
+      const successMessage = `Imported ${imageLeaderboardPlayers.length} players from the 5 selected images. Your permanent overall QR has been kept.`
+      if (cleanupFailures.length) {
+        console.error('Image leaderboard imported, but old session cleanup failed:', cleanupFailures)
+        setFirebaseError(`Import succeeded, but ${cleanupFailures.length} old session(s) could not be archived. The new overall ranking and permanent QR are already saved.`)
+      } else {
+        setFirebaseError('')
+      }
+      window.alert(successMessage)
+    } catch (err) {
+      console.error('Failed to import image leaderboard data:', err)
+      const detail = err?.code || err?.message || 'Unknown Firebase error'
+      if (!coreImportSaved) {
+        setFirebaseError(`Import stopped while ${importStage.toLowerCase()}: ${detail}. Some earlier writes may have completed; retrying the import is safe.`)
+      } else {
+        setFirebaseError(`Import data was saved, but local display refresh failed: ${detail}. Reload the app to read the saved ranking.`)
+      }
+    } finally {
+      setImageImporting(false)
+      setImageImportStage('')
     }
   }
 
@@ -926,14 +1105,19 @@ export default function App() {
 
   const numCourts = state.numCourts
   const localOverallPlayers = readSavedOverall(user?.uid)
-  const overallPlayers = localOverallPlayers || overallLeaderboardPlayers || (!user
+  const historicalOverallPlayers = !user
     ? []
     : profile?.overallShareToken === SCREENSHOT_OVERALL_TOKEN
       ? aggregatePlayers(screenshotSessionData)
-      : aggregatePlayers([
+      : localOverallPlayers || overallLeaderboardPlayers || aggregatePlayers([
         ...mergeSessions(sessions, completedSessions, user.uid).filter((item) => item.id !== SESSION_ID),
         { ...state, id: SESSION_ID }
-      ]))
+      ])
+  const overallPlayers = user && profile?.overallShareToken !== SCREENSHOT_OVERALL_TOKEN
+    ? sessionFinalizing.current
+      ? historicalOverallPlayers
+      : addPlayerStats(historicalOverallPlayers, aggregatePlayers([{ ...state, id: SESSION_ID }]))
+    : historicalOverallPlayers
   useEffect(() => {
     if (!connected || !user || !profile || profile.overallShareToken || overallShareCreating.current) return
     overallShareCreating.current = true
@@ -944,6 +1128,16 @@ export default function App() {
       .catch((err) => console.error('Failed to initialize overall public leaderboard:', err))
       .finally(() => { overallShareCreating.current = false })
   }, [connected, user, profile, overallPlayers])
+  useEffect(() => {
+    if (!connected || !user || !profile?.overallShareToken || sessionFinalizing.current) return
+    savePublicSession(
+      profile.overallShareToken,
+      makePublicOverallSession(overallPlayers, user.uid, profile.clubName)
+    ).catch((err) => {
+      console.error('Failed to update public overall leaderboard:', err)
+      setFirebaseError('Could not update the public overall leaderboard.')
+    })
+  }, [connected, user, profile?.overallShareToken, profile?.clubName, state, overallLeaderboardPlayers, sessions, completedSessions, sessionId])
   const onUpdateSettings = (patch) => {
     if (patch.numCourts) {
       update({ ...patch, courts: makeCourts(patch.numCourts, state.courts) })
@@ -1042,6 +1236,9 @@ export default function App() {
             onUpdateSettings={onUpdateSettings}
             onClearSession={clearSession}
             onNewSession={createNewSession}
+            onImportImageData={importImageLeaderboard}
+            imageImporting={imageImporting}
+            imageImportStage={imageImportStage}
             onSeedTestData={seedCurrentSession}
             onSeedPlayers={seedPlayersOnly}
             publicShareUrl={publicShareUrl}

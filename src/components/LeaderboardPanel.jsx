@@ -110,7 +110,7 @@ export default function LeaderboardPanel({ players: sessionPlayers, overallPlaye
     ? defaultSeasonLabel()
     : formatDate(sessionCreatedAt) || seasonLabel || defaultSeasonLabel();
 
-  const ranked = players.filter((player) => player.gamesPlayed > 0).sort((a, b) => {
+  const ranked = players.filter((player) => scope === "overall" || player.gamesPlayed > 0).sort((a, b) => {
     const wrA = Math.round(getWinRate(a) * 100);
     const wrB = Math.round(getWinRate(b) * 100);
     const pointsA = a.points || 0;
