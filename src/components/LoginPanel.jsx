@@ -6,7 +6,7 @@ import {
   validateAccessCode,
   setPendingSignupCode,
 } from "../firebase";
-import logo1 from "../assets/logo1.png";
+import clashLogo from "../assets/clash-logo.png";
 
 export default function LoginPanel({
   onSuccess,
@@ -115,10 +115,9 @@ export default function LoginPanel({
     <div className="login-shell">
       <div className="login-card">
         <img
-          src={logo1}
-          alt="STP Badminton Queue"
+          src={clashLogo}
+          alt="CLASH"
           className="login-logo"
-          style={{width: 300, marginBottom: 0}}
         />
         <h1 className="login-title">Badminton Queue</h1>
         <div className="login-sub">
@@ -187,7 +186,7 @@ export default function LoginPanel({
             type="submit"
             className="google-btn"
             disabled={busy}
-            style={{ background: "var(--shuttle)", color: "var(--court-dark)" }}
+            style={{ background: "var(--shuttle)", color: "#fff" }}
           >
             {verifying
               ? "Verifying…"

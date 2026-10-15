@@ -8,6 +8,7 @@ import LoginPanel from './components/LoginPanel.jsx'
 import ClubsPanel from './components/ClubsPanel.jsx'
 import { autoMatch } from './utils/matching.js'
 import { imageLeaderboardPlayers } from './utils/imageLeaderboardData.js'
+import { Menu, X } from 'lucide-react'
 import {
   fetchSession,
   listenToSession,
@@ -32,7 +33,7 @@ import {
   saveOverallLeaderboard
 } from './firebase.js'
 import settingsIcon from './assets/settings.svg'
-import logo1 from './assets/logo1.png'
+import clashLogo from './assets/clash-logo.png'
 
 
 const uid = () => Math.random().toString(36).slice(2, 10)
@@ -172,6 +173,7 @@ export default function App() {
   const [completedSessions, setCompletedSessions] = useState([])
   const [overallLeaderboardPlayers, setOverallLeaderboardPlayers] = useState(null)
   const [tab, setTab] = useState('players')
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [connected, setConnected] = useState(false)
   const [firebaseError, setFirebaseError] = useState('')
   const [imageImporting, setImageImporting] = useState(false)
@@ -1165,8 +1167,47 @@ export default function App() {
 
     return (
       <div className="app-shell public-shell-app" data-theme="dark">
-        <div className="topbar"><div className="logo"><img src={logo1} alt="STP Badminton Queue" className="logo-icon" /><div className="center"><h1>Badminton Queue</h1><div className="sub">Skill-based matching · live courts · payment tracking</div></div></div></div>
-        {!publicOverallTokenFromUrl && <div className="tabs public-tabs">{[['queue', 'Queue & Courts'], ['history', 'Match History'], ['leaderboard', 'Leaderboard']].map(([key, label]) => <button key={key} className={`tab ${publicTab === key ? 'active' : ''}`} onClick={() => setPublicTab(key)}>{label}</button>)}</div>}
+        <header className="topbar">
+          <div className="logo">
+            <img src={clashLogo} alt="CLASH" className="logo-icon" />
+            {!publicOverallTokenFromUrl && (
+              <>
+                <button
+                  type="button"
+                  className="mobile-menu-toggle"
+                  aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                  aria-expanded={mobileMenuOpen}
+                  aria-controls="public-navigation"
+                  onClick={() => setMobileMenuOpen((open) => !open)}
+                >
+                  {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+                </button>
+                <nav
+                  id="public-navigation"
+                  className={`tabs public-tabs${mobileMenuOpen ? ' mobile-menu-open' : ''}`}
+                  aria-label="Public navigation"
+                >
+                  {[
+                    ['queue', 'Queue & Courts'],
+                    ['history', 'Match History'],
+                    ['leaderboard', 'Leaderboard'],
+                  ].map(([key, label]) => (
+                    <button
+                      key={key}
+                      className={`tab ${publicTab === key ? 'active' : ''}`}
+                      onClick={() => {
+                        setPublicTab(key)
+                        setMobileMenuOpen(false)
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </nav>
+              </>
+            )}
+          </div>
+        </header>
         <div className="content public-content public-readonly">
           {!publicOverallTokenFromUrl && publicTab === 'queue' && <QueueCourtsPanel {...publicProps} pendingMatch={null} readOnly />}
           {!publicOverallTokenFromUrl && publicTab === 'history' && <MatchHistoryPanel games={publicProps.games} players={publicProps.players} readOnly />}
@@ -1193,35 +1234,50 @@ export default function App() {
 
   return (
     <div className="app-shell" data-theme="dark">
-      <div className="topbar">
+      <header className="topbar">
         <div className="logo">
-          <img src={logo1} alt="STP Badminton Queue" className="logo-icon" />
-          <div className="center">
-            <h1>Badminton Queue</h1>
-            <div className="sub">Skill-based matching · live courts · payment tracking</div>
-          </div>
-        </div>
-      </div>
-
-      <div className="tabs">
-        {['setup', 'players', 'queue', 'history', 'leaderboard', ...(isAdmin ? ['clubs'] : [])].map((t) => (
+          <img src={clashLogo} alt="CLASH" className="logo-icon" />
           <button
-            key={t}
-            className={`tab ${tab === t ? 'active' : ''}`}
-            onClick={() => setTab(t)}
+            type="button"
+            className="mobile-menu-toggle"
+            aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="main-navigation"
+            onClick={() => setMobileMenuOpen((open) => !open)}
           >
-           {t === 'setup' ? (
-  <img src={settingsIcon} alt="Settings" className="tab-icon" />
-) : t === 'queue' ? (
-  'Queue & Courts'
-) : t === 'history' ? (
-  'Match History'
-) : (
-  t[0].toUpperCase() + t.slice(1)
-)}
+            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
-        ))}
-      </div>
+          <nav
+            id="main-navigation"
+            className={`tabs${mobileMenuOpen ? ' mobile-menu-open' : ''}`}
+            aria-label="Main navigation"
+          >
+            {['setup', 'players', 'queue', 'history', 'leaderboard', ...(isAdmin ? ['clubs'] : [])].map((t) => (
+              <button
+                key={t}
+                className={`tab ${tab === t ? 'active' : ''}`}
+                onClick={() => {
+                  setTab(t)
+                  setMobileMenuOpen(false)
+                }}
+              >
+                {t === 'setup' ? (
+                  <>
+                    {/* <img src={settingsIcon} alt="" className="tab-icon" /> */}
+                    <span>Setup</span>
+                  </>
+                ) : t === 'queue' ? (
+                  'Queue & Courts'
+                ) : t === 'history' ? (
+                  'Match History'
+                ) : (
+                  t[0].toUpperCase() + t.slice(1)
+                )}
+              </button>
+            ))}
+          </nav>
+        </div>
+      </header>
 
       <div className="content">
         {tab === 'setup' && (
@@ -1311,7 +1367,7 @@ export default function App() {
         {tab === 'clubs' && isAdmin && <ClubsPanel />}
       </div>
       <footer>
-        <span>© 2026 Aem Manzano · STP Badminton</span>
+        <span>© 2026 Aem Manzano · Clash Badminton</span>
       </footer>
     </div>
   )

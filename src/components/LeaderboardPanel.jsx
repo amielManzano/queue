@@ -6,7 +6,8 @@ import silver1 from "../assets/silver1.png"
 import silver2 from "../assets/silver2.png"
 import bronze1 from "../assets/bronze1.png"
 import bronze2 from "../assets/bronze2.png"
-import logo from "../assets/logo.png"
+
+const clashLogo = "/clash-logo.png";
 
 function isIOS() {
   if (typeof navigator === "undefined") return false;
@@ -216,7 +217,7 @@ export default function LeaderboardPanel({ players: sessionPlayers, overallPlaye
     exportWrapper.dataset.theme = "dark";
     exportWrapper.style.width = `${desktopWidth + 72}px`;
     exportWrapper.style.padding = "36px";
-    exportWrapper.style.background = "#0b0d10";
+    exportWrapper.style.background = "#020617";
     exportWrapper.style.boxSizing = "border-box";
     exportWrapper.style.position = "fixed";
     exportWrapper.style.left = "-10000px";
@@ -261,27 +262,11 @@ export default function LeaderboardPanel({ players: sessionPlayers, overallPlaye
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     }
 
-    const exportShadows = {
-      first: {
-        boxShadow: "0 0 0 1px rgba(255,183,3,0.55), 0 0 18px rgba(255,183,3,0.16), 0 12px 24px rgba(255,183,3,0.14)"
-      },
-      second: {
-        boxShadow: "0 0 0 1px rgba(220,228,238,0.28), 0 0 18px rgba(185,198,213,0.16), 0 12px 24px rgba(154,164,175,0.14)"
-      },
-      third: {
-        boxShadow: "0 0 0 1px rgba(236,157,91,0.28), 0 0 18px rgba(218,127,58,0.16), 0 12px 24px rgba(176,106,52,0.14)"
-      }
-    };
-    Object.entries(exportShadows).forEach(([tone, styles]) => {
-      exportBoard.querySelectorAll(`.league-podium-card.${tone}`).forEach((card) => {
-        card.style.boxShadow = styles.boxShadow;
-      });
-    });
     try {
       const captureOptions = {
         width: desktopWidth + 72,
         height: exportWrapper.scrollHeight,
-        bgcolor: "#0b0d10",
+        bgcolor: "#020617",
         windowWidth: 1200,
         windowHeight: 1000,
       };
@@ -316,7 +301,7 @@ export default function LeaderboardPanel({ players: sessionPlayers, overallPlaye
           <div className="league-head">
             <div className="league-head-left">
               <span className="league-head-icon">
-                <img src={logo} alt="STP Badminton" />
+                <img src={clashLogo} alt="CLASH" />
               </span>
               <div>
                 <div className="league-title">Leaderboard</div>
@@ -352,7 +337,7 @@ export default function LeaderboardPanel({ players: sessionPlayers, overallPlaye
           <div className="league-head">
             <div className="league-head-left">
               <span className="league-head-icon">
-                <img src={logo} alt="STP Badminton" />
+                <img src={clashLogo} alt="CLASH" />
               </span>
               <div>
                 <div className="league-title">Leaderboard</div>
@@ -548,7 +533,7 @@ export default function LeaderboardPanel({ players: sessionPlayers, overallPlaye
               height: "auto",
               maxHeight: "75vh",
               objectFit: "contain",
-              background: "#0b0d10",
+              background: "#020617",
               borderRadius: 8,
             }}
             onClick={(e) => e.stopPropagation()}

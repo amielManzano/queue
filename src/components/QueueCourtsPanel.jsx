@@ -478,7 +478,7 @@ export default function QueueCourtsPanel({
 
         <div className="row queue-match-controls" style={{ marginBottom: 12, alignItems: 'center' }}>
             <select value={assignStrategy} onChange={(e) => setAssignStrategy(e.target.value)} style={{ padding: '8px 10px', borderRadius: 10 }}>
-              <option value="fairRotation">Fair Rotation — ⭐ Recommended</option>
+              <option value="fairRotation">Fair Rotation</option>
               <option value="balancedSkill">Balanced Skill</option>
               <option value="random">Random</option>
             </select>

@@ -65,7 +65,7 @@ export default function MatchHistoryPanel({ games, players, onEditGame }) {
                     {game.teamB.map(playerName).join(' & ') || 'Team B'}
                   </span>
                 </div>
-                <div className="match-history-meta">{Number(game.shuttlesUsed || 0).toFixed(2)} shuttle{Number(game.shuttlesUsed || 0) === 1 ? '' : 's'} used</div>
+                {/* <div className="match-history-meta">{Number(game.shuttlesUsed || 0).toFixed(2)} shuttle{Number(game.shuttlesUsed || 0) === 1 ? '' : 's'} used</div> */}
               </div>
               <button className="btn secondary small match-history-edit" onClick={() => openEditor(game)} aria-label="Edit match" title="Edit match">
                 <PenLine size={14} strokeWidth={2} aria-hidden="true" />

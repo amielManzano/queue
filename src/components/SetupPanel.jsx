@@ -18,7 +18,7 @@ export default function SetupPanel({ sessionId, sessionName, connected, onConnec
       setQrCode('')
       return
     }
-    QRCode.toDataURL(publicShareUrl, { width: 220, margin: 2, color: { dark: '#101b2d', light: '#ffffff' } }).then(setQrCode)
+    QRCode.toDataURL(publicShareUrl, { width: 220, margin: 2, color: { dark: '#020617', light: '#ffffff' } }).then(setQrCode)
   }, [publicShareUrl])
 
   useEffect(() => {
@@ -26,7 +26,7 @@ export default function SetupPanel({ sessionId, sessionName, connected, onConnec
       setOverallQrCode('')
       return
     }
-    QRCode.toDataURL(overallShareUrl, { width: 220, margin: 2, color: { dark: '#101b2d', light: '#ffffff' } }).then(setOverallQrCode)
+    QRCode.toDataURL(overallShareUrl, { width: 220, margin: 2, color: { dark: '#020617', light: '#ffffff' } }).then(setOverallQrCode)
   }, [overallShareUrl])
 
   return (
@@ -51,7 +51,7 @@ export default function SetupPanel({ sessionId, sessionName, connected, onConnec
       {!connected ? (
         <div className="row">
           <input
-            placeholder="Session name e.g. stp-aug12"
+            placeholder="Session name e.g. clash-aug12"
             value={idInput}
             onChange={(e) => setIdInput(e.target.value)}
           />
@@ -132,7 +132,7 @@ export default function SetupPanel({ sessionId, sessionName, connected, onConnec
             <div className="muted">Club name</div>
             <input
               value={clubNameInput}
-              placeholder="e.g. STP Badminton Club"
+              placeholder="e.g. Clash"
               onChange={(e) => setClubNameInput(e.target.value)}
               onBlur={() => onSaveClubName?.(clubNameInput)}
               style={{ width: 220, marginTop: 10 }}
