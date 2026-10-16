@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { skillLabel } from '../utils/matching.js'
+import courtBlueprint from '../assets/court-blueprint.png'
 
 function DoneGameModal({ court, playerName, defaultShuttlePrice, onConfirm, onClose }) {
   const [winner, setWinner] = useState('A')
@@ -16,6 +17,7 @@ function DoneGameModal({ court, playerName, defaultShuttlePrice, onConfirm, onCl
         </div>
         <div className="finish-game-court-preview">
           <div className="court-surface" aria-label={`${court.name} court view`}>
+            <img className="court-blueprint" src={courtBlueprint} alt="" aria-hidden="true" />
             <div className="court-players team-a">
               {court.teamA.map((id) => (
                 <div className="court-player" key={id}>
@@ -366,7 +368,8 @@ export default function QueueCourtsPanel({
               </h3>
 
               {/* always render court surface; show placeholders for empty slots */}
-              <div className="court-surface">
+              <div className="court-surface" aria-label={`${c.name} court view`}>
+                <img className="court-blueprint" src={courtBlueprint} alt="" aria-hidden="true" />
                 <div className="court-players team-a">
                   {Array.from({ length: 2 }).map((_, idx) => {
                     const id = (c.teamA || [])[idx]
