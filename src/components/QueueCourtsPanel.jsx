@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { skillLabel } from '../utils/matching.js'
-import courtBlueprint from '../assets/court-blueprint.png'
+import courtBlueprint from '../assets/court-blueprint.webp'
 
 function DoneGameModal({ court, playerName, defaultShuttlePrice, onConfirm, onClose }) {
   const [winner, setWinner] = useState('A')
