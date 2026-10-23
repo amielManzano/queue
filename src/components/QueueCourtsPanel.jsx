@@ -2,6 +2,29 @@ import React, { useEffect, useState } from 'react'
 import { skillLabel } from '../utils/matching.js'
 import courtBlueprint from '../assets/court-blueprint.webp'
 
+function StartGameModal({ court, playerName, onStart, onClose }) {
+  const teamNames = (team) => (team || []).map(playerName).join(' & ')
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal start-game-modal" onClick={(e) => e.stopPropagation()}>
+        <span className="modal-kicker">Start game</span>
+        <h3>Announce {court.name}?</h3>
+        <div className="start-game-matchup">
+          <strong>{teamNames(court.teamA)}</strong>
+          <span>vs</span>
+          <strong>{teamNames(court.teamB)}</strong>
+        </div>
+        <p className="start-game-hint">Announcing shows a popup to these players on the public link.</p>
+        <div className="row start-game-actions">
+          <button className="btn gold" onClick={() => onStart(true)}>📢 Start &amp; announce</button>
+          <button className="btn secondary" onClick={() => onStart(false)}>Start without announcing</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function DoneGameModal({ court, playerName, defaultShuttlePrice, onConfirm, onClose }) {
   const [winner, setWinner] = useState('A')
   const [shuttles, setShuttles] = useState(1)
@@ -131,12 +154,14 @@ export default function QueueCourtsPanel({
   onAssignPlayerToCourt,
   onClearCourt,
   onStartGame,
+  canAnnounce = false,
   onDoneGame,
   onSwapCourtPlayer,
   onRenameCourt
 }) {
   const [assignStrategy, setAssignStrategy] = useState('fairRotation')
   const [doneModalCourt, setDoneModalCourt] = useState(null)
+  const [startModalCourt, setStartModalCourt] = useState(null)
   const [assigningMatch, setAssigningMatch] = useState(null)
   const [manualMatchOpen, setManualMatchOpen] = useState(false)
   const [manualPlayerIds, setManualPlayerIds] = useState([])
@@ -459,7 +484,7 @@ export default function QueueCourtsPanel({
                 {c.status === 'assigned' && (
                   <button
                     className="btn small"
-                    onClick={() => onStartGame(c.id)}
+                    onClick={() => (canAnnounce ? setStartModalCourt(c) : onStartGame(c.id))}
                     disabled={(c.teamA || []).length + (c.teamB || []).length !== 4}
                     title={(c.teamA || []).length + (c.teamB || []).length === 4 ? 'Start game' : 'Add four players before starting'}
                   >
@@ -638,6 +663,18 @@ export default function QueueCourtsPanel({
       
 
       
+
+      {startModalCourt && (
+        <StartGameModal
+          court={startModalCourt}
+          playerName={playerName}
+          onClose={() => setStartModalCourt(null)}
+          onStart={(announce) => {
+            onStartGame(startModalCourt.id, announce)
+            setStartModalCourt(null)
+          }}
+        />
+      )}
 
       {doneModalCourt && (
         <DoneGameModal

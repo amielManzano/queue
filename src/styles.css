@@ -8116,3 +8116,84 @@ footer {
     font-size: 12px;
   }
 }
+
+/* ── Who am I / your-turn popup ──────────────────────────── */
+.who-am-i-tab.selected {
+  color: #f59e0b;
+}
+
+.announcer-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.app-shell[data-theme="dark"] .modal.announcer-modal {
+  max-width: 380px;
+  text-align: center;
+  border-color: rgba(245,158,11,0.6);
+  animation: announcer-pulse 1s ease-in-out 4;
+}
+
+.announcer-modal-kicker {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f59e0b;
+  margin-bottom: 6px;
+}
+
+.announcer-modal h3 {
+  font-size: 24px;
+  margin-bottom: 12px;
+}
+
+.announcer-modal-matchup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 18px;
+  font-size: 15px;
+}
+
+.announcer-modal-matchup span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.announcer-modal .btn {
+  width: 100%;
+}
+
+@keyframes announcer-pulse {
+  0%, 100% { box-shadow: 0 24px 70px rgba(0,0,0,0.46); }
+  50% { box-shadow: 0 0 0 6px rgba(245,158,11,0.4), 0 24px 70px rgba(0,0,0,0.46); }
+}
+
+.start-game-matchup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 10px 0 8px;
+  font-size: 15px;
+}
+
+.start-game-matchup span,
+.start-game-hint {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.start-game-hint {
+  margin: 0 0 16px;
+}
+
+.start-game-actions {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.start-game-actions .btn {
+  flex: 1 1 auto;
+}

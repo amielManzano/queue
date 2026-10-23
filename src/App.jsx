@@ -6,6 +6,7 @@ import LeaderboardPanel from './components/LeaderboardPanel.jsx'
 import MatchHistoryPanel from './components/MatchHistoryPanel.jsx'
 import LoginPanel from './components/LoginPanel.jsx'
 import ClubsPanel from './components/ClubsPanel.jsx'
+import PublicAnnouncer, { useMeId } from './components/PublicAnnouncer.jsx'
 import { autoMatch } from './utils/matching.js'
 import { imageLeaderboardPlayers } from './utils/imageLeaderboardData.js'
 import { Menu, X } from 'lucide-react'
@@ -183,6 +184,8 @@ export default function App() {
   const [publicSession, setPublicSession] = useState(null)
   const [publicLoading, setPublicLoading] = useState(Boolean(publicTokenFromUrl))
   const [publicTab, setPublicTab] = useState(publicOverallTokenFromUrl ? 'leaderboard' : 'queue')
+  const [meId, selectMe] = useMeId(publicSession?.sessionId)
+  const [whoAmIOpen, setWhoAmIOpen] = useState(false)
   const skipNextSave = useRef(false)
   const overallShareCreating = useRef(false)
   const sessionFinalizing = useRef(false)
@@ -996,7 +999,7 @@ export default function App() {
     const playerIds = [...(court.teamA || []), ...(court.teamB || [])]
     update({
       courts: state.courts.map((item) => item.id === courtId
-        ? { ...item, status: 'empty', teamA: [], teamB: [], startedAt: null, matchNumber: null }
+        ? { ...item, status: 'empty', teamA: [], teamB: [], startedAt: null, announcedAt: null, matchNumber: null }
         : item),
       queue: [
         ...state.queue,
@@ -1021,12 +1024,13 @@ export default function App() {
     update({ courts: state.courts.map((c) => (c.id === courtId ? { ...c, name } : c)) })
   }
 
-  const startGame = (courtId) => {
+  const startGame = (courtId, announce = false) => {
     const court = state.courts.find((item) => item.id === courtId)
     if (!court || (court.teamA || []).length + (court.teamB || []).length !== 4) return
+    const now = Date.now()
     update({
       courts: state.courts.map((c) =>
-        c.id === courtId ? { ...c, status: 'playing', startedAt: Date.now() } : c
+        c.id === courtId ? { ...c, status: 'playing', startedAt: now, announcedAt: announce ? now : null } : c
       )
     })
   }
@@ -1082,7 +1086,7 @@ export default function App() {
     })
 
     const courts = state.courts.map((c) =>
-      c.id === courtId ? { ...c, status: 'empty', teamA: [], teamB: [], startedAt: null, matchNumber: null } : c
+      c.id === courtId ? { ...c, status: 'empty', teamA: [], teamB: [], startedAt: null, announcedAt: null, matchNumber: null } : c
     )
     const scheduledPlayerIds = new Set((state.matchQueue || []).flatMap((match) => [...match.teamA, ...match.teamB]))
     const returningPlayers = [...court.teamA, ...court.teamB]
@@ -1203,11 +1207,32 @@ export default function App() {
                       {label}
                     </button>
                   ))}
+                  <button
+                    className={`tab who-am-i-tab${meId ? ' selected' : ''}`}
+                    onClick={() => {
+                      setWhoAmIOpen(true)
+                      setMobileMenuOpen(false)
+                    }}
+                  >
+                    👤 {publicProps.players.find((p) => p.id === meId)?.name || 'Who am I?'}
+                  </button>
                 </nav>
               </>
             )}
           </div>
         </header>
+        {!publicOverallTokenFromUrl && (
+          <PublicAnnouncer
+            courts={publicProps.courts}
+            players={publicProps.players}
+            queue={publicProps.queue}
+            matchQueue={publicProps.matchQueue}
+            meId={meId}
+            onSelectMe={selectMe}
+            pickerOpen={whoAmIOpen}
+            onClosePicker={() => setWhoAmIOpen(false)}
+          />
+        )}
         <div className="content public-content public-readonly">
           {!publicOverallTokenFromUrl && publicTab === 'queue' && <QueueCourtsPanel {...publicProps} pendingMatch={null} readOnly />}
           {!publicOverallTokenFromUrl && publicTab === 'history' && <MatchHistoryPanel games={publicProps.games} players={publicProps.players} readOnly />}
@@ -1341,6 +1366,7 @@ export default function App() {
             onRemovePlayerFromCourt={removePlayerFromCourt}
             onClearCourt={clearCourt}
             onStartGame={startGame}
+            canAnnounce={publicShareActive}
             onDoneGame={doneGame}
             onRenameCourt={renameCourt}
           />
@@ -1504,7 +1530,7 @@ function makePublicSession(data, sessionId, ownerUid) {
     })),
     queue: data.queue || [],
     matchQueue: data.matchQueue || [],
-    courts: (data.courts || []).map(({ id, name, status, teamA, teamB, matchNumber, startedAt }) => ({ id, name, status, teamA, teamB, matchNumber, startedAt })),
+    courts: (data.courts || []).map(({ id, name, status, teamA, teamB, matchNumber, startedAt, announcedAt }) => ({ id, name, status, teamA, teamB, matchNumber, startedAt, announcedAt: announcedAt || null })),
     games: data.games || []
   }
 }
