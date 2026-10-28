@@ -1,6 +1,99 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
+import { GripVertical } from 'lucide-react'
 import { skillLabel } from '../utils/matching.js'
 import courtBlueprint from '../assets/court-blueprint.webp'
+
+// Drag-to-reorder for a vertical list. Uses pointer events (not HTML5 drag and
+// drop) so the grip handle works with touch as well as a mouse. Cards move via
+// the `translate` property because the entrance animation pins `transform`.
+function useListReorder(listRef, onReorder) {
+  const [drag, setDrag] = useState(null)
+  const dragRef = useRef(null)
+
+  const move = () => {
+    const current = dragRef.current
+    const list = listRef.current
+    if (!current || !list) return
+    const offset = current.pointerY - current.startY + list.scrollTop - current.startScroll
+    current.element.style.translate = `0 ${offset}px`
+    const center = current.centers[current.from] + offset
+    const to = current.centers.filter((itemCenter, index) => index !== current.from && itemCenter < center).length
+    if (to !== current.to) {
+      current.to = to
+      setDrag((state) => state && { ...state, to })
+    }
+  }
+
+  // keep scrolling while the pointer rests near the top or bottom edge
+  const autoScroll = () => {
+    const current = dragRef.current
+    const list = listRef.current
+    if (!current || !list) return
+    const { top, bottom } = list.getBoundingClientRect()
+    const step = current.pointerY < top + 40 ? -8 : current.pointerY > bottom - 40 ? 8 : 0
+    if (step) {
+      list.scrollTop += step
+      move()
+    }
+    current.frame = requestAnimationFrame(autoScroll)
+  }
+
+  const finish = (commit) => {
+    const current = dragRef.current
+    if (!current) return
+    cancelAnimationFrame(current.frame)
+    current.element.style.translate = ''
+    dragRef.current = null
+    setDrag(null)
+    if (commit && current.to !== current.from) onReorder?.(current.id, current.to)
+  }
+
+  const handleProps = (id, index, count) => ({
+    onPointerDown: (e) => {
+      const list = listRef.current
+      if (e.button !== 0 || !list) return
+      e.preventDefault()
+      e.currentTarget.setPointerCapture(e.pointerId)
+      const items = [...list.children]
+      const listTop = list.getBoundingClientRect().top
+      const centers = items.map((item) => {
+        const rect = item.getBoundingClientRect()
+        return rect.top - listTop + list.scrollTop + rect.height / 2
+      })
+      const shift = items[index].offsetHeight + (parseFloat(getComputedStyle(list).rowGap) || 0)
+      dragRef.current = { id, from: index, to: index, element: items[index], centers, startY: e.clientY, pointerY: e.clientY, startScroll: list.scrollTop }
+      dragRef.current.frame = requestAnimationFrame(autoScroll)
+      setDrag({ id, from: index, to: index, shift })
+    },
+    onPointerMove: (e) => {
+      if (!dragRef.current) return
+      dragRef.current.pointerY = e.clientY
+      move()
+    },
+    onPointerUp: () => finish(true),
+    onPointerCancel: () => finish(false),
+    onKeyDown: (e) => {
+      if (e.key === 'ArrowUp' && index > 0) onReorder?.(id, index - 1)
+      else if (e.key === 'ArrowDown' && index < count - 1) onReorder?.(id, index + 1)
+      else return
+      e.preventDefault()
+      // React may re-insert the moved card, which drops focus from the handle
+      const handle = e.currentTarget
+      requestAnimationFrame(() => handle.focus())
+    }
+  })
+
+  const itemStyle = (index) => {
+    if (!drag) return undefined
+    if (index === drag.from) return { position: 'relative', zIndex: 2, transition: 'none' }
+    const offset = drag.from < drag.to && index > drag.from && index <= drag.to ? -drag.shift
+      : drag.from > drag.to && index >= drag.to && index < drag.from ? drag.shift
+        : 0
+    return { translate: `0 ${offset}px`, transition: 'translate 150ms ease' }
+  }
+
+  return { drag, handleProps, itemStyle }
+}
 
 function StartGameModal({ court, playerName, onStart, onClose }) {
   const teamNames = (team) => (team || []).map(playerName).join(' & ')
@@ -148,6 +241,7 @@ export default function QueueCourtsPanel({
   onClearMatch,
   onReorderQueue,
   onReorderQueueTo,
+  onReorderMatchQueue,
   onRemoveFromQueue,
   onRemovePlayerFromCourt,
   onAssignMatchToCourt,
@@ -173,6 +267,8 @@ export default function QueueCourtsPanel({
   const [tick, setTick] = useState(Date.now())
   const [editingCourtId, setEditingCourtId] = useState(null)
   const [editingCourtName, setEditingCourtName] = useState('')
+  const matchListRef = useRef(null)
+  const matchReorder = useListReorder(matchListRef, onReorderMatchQueue)
 
   useEffect(() => {
     const timer = window.setInterval(() => setTick(Date.now()), 1000)
@@ -508,6 +604,7 @@ export default function QueueCourtsPanel({
             <select value={assignStrategy} onChange={(e) => setAssignStrategy(e.target.value)} style={{ padding: '8px 10px', borderRadius: 10 }}>
               <option value="fairRotation">Fair Rotation</option>
               <option value="balancedSkill">Balanced Skill</option>
+              <option value="sameLevel">Same Level</option>
               <option value="random">Random</option>
             </select>
 
@@ -518,7 +615,7 @@ export default function QueueCourtsPanel({
               Manual match
             </button>
 
-            <span className="muted">Choose a matching strategy: Fair Rotation, Balanced Skill, or Random</span>
+            <span className="muted">Choose a matching strategy: Fair Rotation, Balanced Skill, Same Level, or Random</span>
         </div>
 
         <div className="match-queue">
@@ -532,11 +629,27 @@ export default function QueueCourtsPanel({
               <span>Build a match from the waiting players to see it here.</span>
             </div>
           ) : (
-            <div className="match-queue-items">
+            <div className="match-queue-items" ref={matchListRef}>
               {matchQueue.map((match, index) => (
-                <div className="court-card match-queue-card" key={match.id}>
+                <div
+                  className={`court-card match-queue-card${matchReorder.drag?.id === match.id ? ' dragging' : ''}`}
+                  key={match.id}
+                  style={matchReorder.itemStyle(index)}
+                >
                 <div className="match-queue-card-top">
                   <h3 className="match-queue-card-heading">
+                    {/* the public view passes no reorder handler, so it gets no handle */}
+                    {onReorderMatchQueue && matchQueue.length > 1 && (
+                      <button
+                        type="button"
+                        className="match-drag-handle"
+                        aria-label={`Reorder match ${index + 1}`}
+                        title="Drag to reorder"
+                        {...matchReorder.handleProps(match.id, index, matchQueue.length)}
+                      >
+                        <GripVertical size={16} aria-hidden="true" />
+                      </button>
+                    )}
                     <span className="match-number">{index + 1}</span>
                     <span>Match</span>
                   </h3>

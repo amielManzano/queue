@@ -1574,6 +1574,40 @@ tbody tr:hover td { background: rgba(0,0,0,0.02); }
   letter-spacing: 0;
 }
 
+.app-shell[data-theme="dark"] .match-drag-handle {
+  display: grid;
+  width: 28px;
+  height: 34px;
+  place-items: center;
+  margin: 0 -4px 0 -6px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  color: var(--app-text-muted);
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+}
+
+.app-shell[data-theme="dark"] .match-drag-handle:hover,
+.app-shell[data-theme="dark"] .match-drag-handle:focus-visible {
+  color: var(--shuttle);
+  background: rgba(59,130,246,0.1);
+}
+
+.app-shell[data-theme="dark"] .match-queue-items .match-queue-card.dragging,
+.app-shell[data-theme="dark"] .match-queue-items .match-queue-card.dragging:hover {
+  border-left-color: var(--shuttle);
+  background: var(--app-surface-muted);
+  box-shadow: 0 18px 34px rgba(0,0,0,0.45), 0 0 0 1px rgba(59,130,246,0.45);
+  cursor: grabbing;
+}
+
+.app-shell[data-theme="dark"] .match-queue-card.dragging .match-drag-handle {
+  color: var(--shuttle);
+  cursor: grabbing;
+}
+
 .app-shell[data-theme="dark"] .match-teams {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr);
@@ -7377,6 +7411,12 @@ footer {
     margin: 0;
     border-radius: 6px;
     font-size: 9px;
+  }
+
+  .app-shell[data-theme="dark"] .match-drag-handle {
+    width: 30px;
+    height: 30px;
+    margin: -4px -2px -4px -4px;
   }
 
   .app-shell[data-theme="dark"] .match-teams {

@@ -48,7 +48,18 @@ export function autoMatch(queue, players, strategy = 'fairRotation', games = [])
   // Fair Rotation deliberately holds players from the last game when a fresh
   // group can be made. A 12-player pool still keeps combinations manageable.
   const poolLimit = Math.min(rotationEntries.length, strategy === 'fairRotation' ? 12 : 8)
-  const pool = rotationEntries.slice(0, poolLimit).map((match) => ({ ...match.player, queuedAt: match.entry.queuedAt }))
+  const toPoolPlayer = (match) => ({ ...match.player, queuedAt: match.entry.queuedAt })
+  const pool = rotationEntries.slice(0, poolLimit).map(toPoolPlayer)
+
+  // Same Level only matches players from one level group, so draw up to 8 per
+  // group from the whole queue instead of only the first 8 queued players.
+  const groups = strategy === 'sameLevel'
+    ? Object.values(entries.reduce((byGroup, match) => {
+      const group = levelGroup(match.player.skillLevel)
+      if (group) (byGroup[group] ||= []).push(match)
+      return byGroup
+    }, {})).map((group) => group.slice(0, 8).map(toPoolPlayer))
+    : [pool]
 
   // helper: evaluate a 4-player combo
   const now = Date.now()
@@ -100,7 +111,8 @@ export function autoMatch(queue, players, strategy = 'fairRotation', games = [])
       score += opponents * 450        // strongly avoid familiar opponents
       score += skillDiff * 12         // retain skill balance
       score += consecutive * 2000     // only used when a fresh group cannot be formed
-    } else if (strat === 'balancedSkill') {
+    } else if (strat === 'balancedSkill' || strat === 'sameLevel') {
+      // Same Level reuses this scoring within a single level group
       score += skillDiff * 12         // prioritize skill balance
       score += gamesSum * 4           // prefer fewest games
       score -= waitSum / 1000 * 3     // consider waiting time
@@ -125,13 +137,15 @@ export function autoMatch(queue, players, strategy = 'fairRotation', games = [])
     return { score, teamA: teamA.map((p) => p.id), teamB: teamB.map((p) => p.id) }
   }
 
-  // generate combos of 4 from pool
+  // generate combos of 4 within each group
   const combos = []
-  for (let i = 0; i < pool.length; i++) {
-    for (let j = i + 1; j < pool.length; j++) {
-      for (let k = j + 1; k < pool.length; k++) {
-        for (let l = k + 1; l < pool.length; l++) {
-          combos.push([pool[i], pool[j], pool[k], pool[l]])
+  for (const group of groups) {
+    for (let i = 0; i < group.length; i++) {
+      for (let j = i + 1; j < group.length; j++) {
+        for (let k = j + 1; k < group.length; k++) {
+          for (let l = k + 1; l < group.length; l++) {
+            combos.push([group[i], group[j], group[k], group[l]])
+          }
         }
       }
     }
@@ -144,6 +158,9 @@ export function autoMatch(queue, players, strategy = 'fairRotation', games = [])
   }
 
   if (!best) {
+    // no level group has 4 players; mixing levels would break the rule
+    if (strategy === 'sameLevel') return null
+
     // fallback: take first 4
     const first4 = entries.slice(0, 4).map((m) => m.player)
     const sorted = [...first4].sort((a, b) => b.skillLevel - a.skillLevel)
@@ -154,6 +171,16 @@ export function autoMatch(queue, players, strategy = 'fairRotation', games = [])
   }
 
   return { teamA: best.teamA, teamB: best.teamB }
+}
+
+// Same Level groups: Beginner + Novice, Intermediate, Advanced + Open/Pro.
+// Unranked players belong to no group, so Same Level never picks them.
+export function levelGroup(level) {
+  const value = Number(level)
+  if (value === 1 || value === 2) return 'beginnerNovice'
+  if (value === 3) return 'intermediate'
+  if (value === 4 || value === 5) return 'advancedPro'
+  return null
 }
 
 export function skillLabel(level) {

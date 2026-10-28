@@ -39,6 +39,17 @@ import clashLogo from './assets/clash-logo.png'
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 
+// Returns a copy of `items` with the item whose id is `id` moved to `toIndex`,
+// or null when no item has that id.
+function moveToIndex(items, id, toIndex) {
+  const next = [...items]
+  const from = next.findIndex((item) => item.id === id)
+  if (from < 0) return null
+  const [item] = next.splice(from, 1)
+  next.splice(Math.min(Math.max(0, toIndex), next.length), 0, item)
+  return next
+}
+
 // Each signed-in user gets exactly one private session, keyed by their own
 // uid, so different accounts can never see or overwrite each other's data.
 const storageKey = (userId) => `stp-session-data:${userId}`
@@ -844,6 +855,11 @@ export default function App() {
     update({ queue: q })
   }
 
+  const reorderMatchQueueTo = (matchId, toIndex) => {
+    const matches = moveToIndex(state.matchQueue || [], matchId, toIndex)
+    if (matches) update({ matchQueue: matches })
+  }
+
   const runAutoMatch = (strategy = 'fairRotation') => {
     const reservedPlayerIds = new Set([
       ...(state.matchQueue || []).flatMap((match) => [...(match.teamA || []), ...(match.teamB || [])]),
@@ -851,7 +867,12 @@ export default function App() {
     ])
     const matchableQueue = state.queue.filter((entry) => !reservedPlayerIds.has(entry.id))
     const result = autoMatch(matchableQueue, state.players, strategy, state.games)
-    if (!result) return
+    if (!result) {
+      if (strategy === 'sameLevel') {
+        window.alert('Same Level needs 4 waiting players from one group: Beginner/Novice, Intermediate, or Advanced/Open-Pro.')
+      }
+      return
+    }
     const selectedPlayerIds = new Set([...result.teamA, ...result.teamB])
     const newQueue = state.queue.filter((entry) => !selectedPlayerIds.has(entry.id))
     const queuedAtByPlayer = Object.fromEntries(
@@ -1360,6 +1381,7 @@ export default function App() {
             onClearMatch={clearMatch}
             onReorderQueue={reorderQueue}
             onReorderQueueTo={reorderQueueTo}
+            onReorderMatchQueue={reorderMatchQueueTo}
             onRemoveFromQueue={removeFromQueue}
             onAssignMatchToCourt={assignMatchToCourt}
             onAssignPlayerToCourt={assignPlayerToCourt}
