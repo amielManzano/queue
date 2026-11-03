@@ -10438,3 +10438,17 @@ footer {
     letter-spacing: 0.1em;
   }
 }
+
+/* Public view: Team B also fills the empty action column so it sits at the
+   card's right edge. The outer columns stay equal, so VS remains centred. */
+.mq-card.readonly .mq-team.team-b {
+  grid-column: 4 / 6;
+  padding-right: 16px;
+}
+
+@media (max-width: 720px) {
+  .mq-card.readonly .mq-team.team-b {
+    grid-column: 4 / 6;
+    padding-right: 14px;
+  }
+}
