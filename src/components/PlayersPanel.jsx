@@ -14,7 +14,7 @@ export default function PlayersPanel({ players, games, courtFee, onAddPlayer, on
 
   const submit = () => {
     if (!name.trim()) return
-    onAddPlayer(name.trim(), skill)
+    if (onAddPlayer(name.trim(), skill) === false) return
     setName('')
     setSkill(3)
     setAddModalOpen(false)
@@ -37,7 +37,7 @@ export default function PlayersPanel({ players, games, courtFee, onAddPlayer, on
     if (!trimmedName) return
 
     if (onUpdatePlayer && trimmedName !== player.name) {
-      onUpdatePlayer(player.id, { name: trimmedName })
+      if (onUpdatePlayer(player.id, { name: trimmedName }) === false) return
     }
 
     if (onEditSkill && editSkill !== player.skillLevel) {

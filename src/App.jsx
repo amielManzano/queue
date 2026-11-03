@@ -8,6 +8,7 @@ import LoginPanel from './components/LoginPanel.jsx'
 import ClubsPanel from './components/ClubsPanel.jsx'
 import PublicAnnouncer, { useMeId } from './components/PublicAnnouncer.jsx'
 import { autoMatch } from './utils/matching.js'
+import { findPlayerByName, mergeDuplicatePlayers } from './utils/players.js'
 import { imageLeaderboardPlayers } from './utils/imageLeaderboardData.js'
 import { Menu, X } from 'lucide-react'
 import {
@@ -407,6 +408,14 @@ export default function App() {
     })
     try { saveLocal(state) } catch (e) {}
   }, [state, connected, SESSION_ID])
+
+  // Repairs sessions that picked up a same-name duplicate before duplicate
+  // names were blocked: the copy's stats and games move to the original.
+  useEffect(() => {
+    if (!connected) return
+    const merged = mergeDuplicatePlayers(state)
+    if (merged) update(merged)
+  }, [state.players, connected])
 
   useEffect(() => {
     if (!connected || !state.shareToken) return
@@ -812,14 +821,23 @@ export default function App() {
   }, [connected, SESSION_ID, state.shareToken])
 
   // ── Players ────────────────────────────────────────────────
+  const rejectDuplicateName = (name, excludeId) => {
+    const existing = findPlayerByName(state.players, name, excludeId)
+    if (!existing) return false
+    window.alert(`"${existing.name}" is already in the player list. Use the existing player instead of adding a new one.`)
+    return true
+  }
   const addPlayer = (name, skillLevel) => {
+    if (rejectDuplicateName(name)) return false
     const player = { id: uid(), name, skillLevel, wins: 0, losses: 0, gamesPlayed: 0, points: 0 }
     update({ players: [...state.players, player] })
+    return true
   }
   const editSkill = (id, skillLevel) => {
     update({ players: state.players.map((p) => (p.id === id ? { ...p, skillLevel } : p)) })
   }
   const updatePlayer = (id, patch) => {
+    if (patch.name && rejectDuplicateName(patch.name, id)) return false
     update({ players: state.players.map((p) => (p.id === id ? { ...p, ...patch } : p)) })
   }
   const removePlayer = (id) => {
