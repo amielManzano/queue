@@ -87,7 +87,6 @@ const LeaderboardPoster = forwardRef(function LeaderboardPoster(
             <PosterMedal rank={1} size={200} />
             <div className="lb-poster-hero-body">
               <div className="lb-poster-who">
-                <div className="lb-poster-mono">{getInitials(first[0]?.name) || "?"}</div>
                 <div>
                   <div className="lb-poster-place gold">{PODIUM_TONES[1].label}</div>
                   <div className="lb-poster-name hero">{podiumName(first)}</div>

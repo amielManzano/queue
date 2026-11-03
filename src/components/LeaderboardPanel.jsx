@@ -313,7 +313,6 @@ export default function LeaderboardPanel({ players: sessionPlayers, overallPlaye
             <PosterMedal rank={1} />
             <div className="lb-poster-hero-body">
               <div className="lb-poster-who">
-                {avatar(first[0], "lb-poster-mono")}
                 <div>
                   <div className="lb-poster-place gold">{PODIUM_TONES[1].label}</div>
                   <div className="lb-poster-name hero">{groupName(first)}</div>
