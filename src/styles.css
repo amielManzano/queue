@@ -8499,6 +8499,7 @@ footer {
   padding: 26px 36px 26px 26px;
   overflow: hidden;
   border: 1px solid rgba(59,130,246,0.55);
+  border-top: 3px solid var(--lbp-gold); /* gold accent, like the silver/bronze cards */
   border-radius: 26px;
   background: linear-gradient(135deg, rgba(59,130,246,0.30), rgba(21,31,53,0.94) 45%, rgba(11,18,34,0.96));
   box-shadow: 0 30px 80px rgba(2,6,23,0.8);
