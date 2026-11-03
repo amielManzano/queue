@@ -312,15 +312,23 @@ export default function App() {
                 console.error('Public overall leaderboard unavailable:', err)
               }
             }
+            // Firebase is the source of truth shared by every device. The copy
+            // in this browser's localStorage is only an offline fallback, and is
+            // refreshed below so a stale copy can never win.
             const overallPlayers = profile.overallShareToken === SCREENSHOT_OVERALL_TOKEN
               ? aggregatePlayers(screenshotSessionData)
-              : Array.isArray(localOverall)
-                ? localOverall
-                : Array.isArray(savedOverallPlayers)
-                  ? savedOverallPlayers
+              : Array.isArray(savedOverallPlayers)
+                ? savedOverallPlayers
+                : Array.isArray(localOverall)
+                  ? localOverall
                   : savedOverall?.publicType === 'overall' && Array.isArray(savedOverall.players)
                     ? savedOverall.players
                     : profile.overallLeaderboard || []
+            if (Array.isArray(savedOverallPlayers)) {
+              try {
+                localStorage.setItem(overallStorageKey(u.uid), JSON.stringify(savedOverallPlayers))
+              } catch (err) {}
+            }
             setOverallLeaderboardPlayers(overallPlayers)
           } catch (err) {
             console.error('Failed to populate overall leaderboard history:', err)
@@ -576,7 +584,10 @@ export default function App() {
         { ...finishedState, id: SESSION_ID }
       ]
       const finishedSessionPlayers = aggregatePlayers([{ ...finishedState, id: SESSION_ID }])
-      const previousOverallPlayers = readSavedOverall(user.uid) || overallLeaderboardPlayers || aggregatePlayers(
+      // Start from the latest Firebase totals (another device may have finished
+      // a session since this one loaded), never from a possibly stale local copy.
+      const latestSavedOverall = await fetchOverallLeaderboard(user.uid).catch(() => null)
+      const previousOverallPlayers = latestSavedOverall || overallLeaderboardPlayers || readSavedOverall(user.uid) || aggregatePlayers(
         overallHistory.filter((session) => session.id !== SESSION_ID)
       )
       const finishedOverallPlayers = addPlayerStats(previousOverallPlayers, finishedSessionPlayers)
@@ -1154,7 +1165,7 @@ export default function App() {
     ? []
     : profile?.overallShareToken === SCREENSHOT_OVERALL_TOKEN
       ? aggregatePlayers(screenshotSessionData)
-      : localOverallPlayers || overallLeaderboardPlayers || aggregatePlayers([
+      : overallLeaderboardPlayers || localOverallPlayers || aggregatePlayers([
         ...mergeSessions(sessions, completedSessions, user.uid).filter((item) => item.id !== SESSION_ID),
         { ...state, id: SESSION_ID }
       ])
