@@ -633,7 +633,7 @@ export default function QueueCourtsPanel({
             <div className="match-queue-items" ref={matchListRef}>
               {matchQueue.map((match, index) => (
                 <div
-                  className={`mq-card${index === 0 ? ' next' : ''}${matchReorder.drag?.id === match.id ? ' dragging' : ''}`}
+                  className={`mq-card${readOnly ? ' readonly' : ''}${index === 0 ? ' next' : ''}${matchReorder.drag?.id === match.id ? ' dragging' : ''}`}
                   key={match.id}
                   style={matchReorder.itemStyle(index)}
                 >
@@ -673,7 +673,8 @@ export default function QueueCourtsPanel({
                     ))}
                   </div>
 
-                  {/* Actions stack in a column on the card's right edge. */}
+                  {/* Actions stack in a column on the card's right edge (not on the public view, where they can't be used). */}
+                  {!readOnly && (
                   <div className="mq-actions">
                     <button
                       className="btn mq-btn assign"
@@ -701,6 +702,7 @@ export default function QueueCourtsPanel({
                       <Undo2 size={14} strokeWidth={2.25} aria-hidden="true" />
                     </button>
                   </div>
+                  )}
                 </div>
               ))}
             </div>

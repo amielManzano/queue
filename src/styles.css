@@ -10365,3 +10365,76 @@ footer {
     width: 100%;
   }
 }
+
+/* Public view: no action column. The empty last column mirrors the number
+   column, so VS stays at the card's exact centre. */
+
+/* Phones: the info pill sits to the right of the title instead of below it;
+   the controls (if any) take the full row underneath. */
+@media (max-width: 720px) {
+  .lb-page-header .lb-page-title-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    column-gap: 10px;
+  }
+
+  .lb-page-header-side {
+    display: contents;
+  }
+
+  .lb-page-header-side .lb-poster-date {
+    grid-column: 2;
+    grid-row: 1;
+    max-width: 150px;
+    margin-top: 4px;
+    padding: 6px 10px;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    line-height: 1.35;
+    text-align: right;
+    white-space: normal;
+  }
+
+  .lb-page-header-side .lb-page-controls {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  /* Tighter tag line so it stays on one line beside the pill. */
+  .lb-page-header .lb-poster-tag {
+    gap: 8px;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    white-space: nowrap;
+  }
+
+  .lb-page-header .lb-poster-tag i {
+    width: 22px;
+  }
+}
+
+/* Setup on phones: New session / Clear Session sit on the right. */
+@media (max-width: 720px) {
+  .app-shell[data-theme="dark"] .setup-page .lb-page-controls {
+    justify-content: flex-end;
+  }
+}
+
+/* Smaller header info pills ("As of …", counts) on every page. */
+.lb-page-header .lb-poster-date {
+  padding: 4px 10px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  line-height: 1.35;
+}
+
+@media (max-width: 720px) {
+  .lb-page-header-side .lb-poster-date {
+    max-width: 130px;
+    margin-top: 6px;
+    padding: 4px 8px;
+    font-size: 9.5px;
+    letter-spacing: 0.1em;
+  }
+}
