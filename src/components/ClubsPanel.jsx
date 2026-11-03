@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { listenToClubs, createClub, listenToUsers } from '../firebase'
+import PageHeader from './PageHeader.jsx'
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no ambiguous chars (0/O, 1/I)
 
@@ -79,13 +80,17 @@ export default function ClubsPanel() {
   }
 
   return (
-    <div className="panel">
-      <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-        <h2 style={{ margin: 0 }}>Clubs</h2>
+    <div className="panel lb-page clubs-page">
+      <PageHeader
+        meta={<><b>{clubs.length}</b> clubs · <b>{users.length}</b> users</>}
+        kicker="Admin"
+        title="Clubs"
+        tag="Access codes and members"
+      >
         <button className="btn" onClick={handleAddClub} disabled={creating}>
           {creating ? 'Creating…' : '+ Add Club'}
         </button>
-      </div>
+      </PageHeader>
 
       {error && (
         <div className="login-error" style={{ color: '#8d2a2a', background: '#fff2f2', border: '1px solid #f1c0c0', marginTop: 12 }}>
@@ -132,8 +137,7 @@ export default function ClubsPanel() {
                 </td>
                 <td>{formatDate(club.createdAt)}</td>
                 <td>
-                  <span className="status-pill" style={!club.used ? { background: 'rgba(107,114,128,0.12)', color: '#4b5563' } : undefined}>
-                    <span className="dot" style={!club.used ? { background: '#9ca3af', boxShadow: '0 0 0 3px rgba(156,163,175,0.18)' } : undefined} />
+                  <span className={`badge ${club.used ? 'green' : 'neutral'}`}>
                     {club.used ? 'Claimed' : 'Pending'}
                   </span>
                 </td>
@@ -143,7 +147,10 @@ export default function ClubsPanel() {
         </table>
       )}
 
-      <h2 style={{ marginTop: 28 }}>Users</h2>
+      <div className="page-heading" style={{ marginTop: 28 }}>
+        <h2>Users</h2>
+        <span>{users.length} signed up</span>
+      </div>
       {usersLoading ? (
         <div className="empty-state">Loading users…</div>
       ) : users.length === 0 ? (

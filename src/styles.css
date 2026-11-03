@@ -145,10 +145,17 @@
   --danger: #d64545;
   --muted: #6b7280;
   --radius: 14px;
-  font-family: 'Inter', system-ui, sans-serif;
+  /* One type system app-wide: Barlow for text, Barlow Condensed for labels
+     and numbers, Anton for titles (all self-hosted in public/fonts). */
+  font-family: 'Barlow', system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }
+
+/* Form controls don't inherit the page font by default. */
+button, input, select, textarea {
+  font-family: inherit;
+}
 
 body {
   margin: 0;
@@ -161,8 +168,9 @@ body {
 }
 
 h1, h2, h3, .display {
-  font-family: 'Archivo Black', 'Inter', sans-serif;
-  letter-spacing: -0.02em;
+  font-family: 'Anton', 'Barlow Condensed', sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.01em;
   text-transform: uppercase;
 }
 
@@ -194,7 +202,7 @@ h1, h2, h3, .display {
   font-size: 12px;
   opacity: 0.85;
   text-transform: none;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Barlow', sans-serif;
   letter-spacing: normal;
   color: white;
 }
@@ -9253,5 +9261,1107 @@ footer {
 
   .lb-page-table {
     margin-top: 14px;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Shared page design: every tab uses the leaderboard look (PageHeader,
+   Barlow type, dark navy cards, condensed numbers). Rules are scoped to
+   .lb-page so they win over the older per-page dark-theme styles.
+   ------------------------------------------------------------------ */
+.app-shell[data-theme="dark"] .panel.lb-page {
+  margin-bottom: 15px;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.lb-page-header {
+  margin-bottom: clamp(16px, 2.4vw, 26px);
+}
+
+.lb-page-header .lb-page-controls .btn {
+  min-height: 33px;
+  white-space: nowrap;
+}
+
+.lb-page-header .lb-page-controls input {
+  min-height: 33px;
+}
+
+/* Section headings inside a page ("Match queue", "Player queue", "Users") */
+.app-shell[data-theme="dark"] .lb-page .page-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: clamp(22px, 3vw, 32px) 0 12px;
+  padding: 0;
+  border: 0;
+}
+
+.app-shell[data-theme="dark"] .lb-page .page-heading h2 {
+  margin: 0;
+  padding: 0;
+  color: var(--lbp-muted);
+  font: 700 15px "Barlow Condensed", sans-serif;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+}
+
+.app-shell[data-theme="dark"] .lb-page .page-heading h2::after {
+  display: none;
+}
+
+.app-shell[data-theme="dark"] .lb-page .page-heading::after {
+  content: "";
+  order: 1;
+  flex: 1;
+  height: 1px;
+  background: var(--lbp-line);
+}
+
+.app-shell[data-theme="dark"] .lb-page .page-heading > :not(h2) {
+  order: 2;
+  color: var(--lbp-muted);
+  font: 600 13px "Barlow Condensed", sans-serif;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* Shared card surface */
+.app-shell[data-theme="dark"] .lb-page .share-box,
+.app-shell[data-theme="dark"] .lb-page .account-row,
+.app-shell[data-theme="dark"] .lb-page .court-card,
+.app-shell[data-theme="dark"] .lb-page .match-history-item,
+.app-shell[data-theme="dark"] .lb-page .player-status-card {
+  border: 1px solid var(--lbp-line);
+  border-radius: 18px;
+  color: var(--lbp-text);
+  background: linear-gradient(160deg, rgba(21,31,53,0.95), rgba(11,18,34,0.95));
+  box-shadow: none;
+}
+
+.app-shell[data-theme="dark"] .lb-page .muted,
+.app-shell[data-theme="dark"] .lb-page .leader-meta {
+  color: var(--lbp-muted);
+}
+
+/* ---------- Setup ---------- */
+.app-shell[data-theme="dark"] .setup-page .account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px !important;
+  padding: 14px 18px;
+}
+
+.app-shell[data-theme="dark"] .setup-page .account-avatar {
+  background: linear-gradient(135deg, var(--lbp-blue), var(--lbp-cyan));
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 800;
+}
+
+.app-shell[data-theme="dark"] .setup-page .share-box {
+  padding: clamp(16px, 2.4vw, 24px);
+}
+
+.app-shell[data-theme="dark"] .setup-page .qr-preview {
+  border: 1px solid var(--lbp-line);
+  border-radius: 14px;
+  color: var(--lbp-muted);
+  background: rgba(2,6,23,0.55);
+}
+
+.app-shell[data-theme="dark"] .setup-page .qr-preview span {
+  color: var(--lbp-muted);
+  font-family: "Barlow Condensed", sans-serif;
+  letter-spacing: 0.14em;
+}
+
+.app-shell[data-theme="dark"] .setup-page .session-qr {
+  border-radius: 10px;
+  background: #fff;
+}
+
+.app-shell[data-theme="dark"] .setup-page .share-eyebrow {
+  color: var(--lbp-cyan);
+  font-family: "Barlow Condensed", sans-serif;
+  letter-spacing: 0.24em;
+}
+
+.app-shell[data-theme="dark"] .setup-page .share-heading strong {
+  color: var(--lbp-text);
+  font-family: "Anton", sans-serif;
+  font-size: clamp(22px, 2.6vw, 30px);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+.app-shell[data-theme="dark"] .setup-page .share-description,
+.app-shell[data-theme="dark"] .setup-page .share-expiry,
+.app-shell[data-theme="dark"] .setup-page .share-link-label {
+  color: var(--lbp-muted);
+}
+
+.app-shell[data-theme="dark"] .setup-page .share-link-row input {
+  border: 1px solid var(--lbp-line);
+  color: var(--lbp-text);
+  background: rgba(2,6,23,0.7);
+}
+
+.app-shell[data-theme="dark"] .setup-page .share-live {
+  border: 1px solid rgba(52,211,153,0.4);
+  color: #34d399;
+  background: rgba(52,211,153,0.1);
+}
+
+.app-shell[data-theme="dark"] .setup-page > .row label .muted {
+  color: var(--lbp-muted);
+  font: 600 12px "Barlow Condensed", sans-serif;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* ---------- Players ---------- */
+.app-shell[data-theme="dark"] .players-page .lb-page-controls {
+  flex-wrap: nowrap;
+}
+
+.app-shell[data-theme="dark"] .players-page .lb-page-controls .search-player-input {
+  flex: 0 1 260px;
+  width: 260px;
+  min-width: 0;
+  max-width: 300px;
+  margin: 0;
+}
+
+.app-shell[data-theme="dark"] .players-page .player-status-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: -6px 0 14px;
+  color: var(--lbp-muted);
+  font: 600 13px "Barlow Condensed", sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.app-shell[data-theme="dark"] .players-page .player-table-wrap {
+  overflow: hidden;
+  border: 1px solid var(--lbp-line);
+  border-radius: 18px;
+  background: rgba(11,18,34,0.85);
+}
+
+.app-shell[data-theme="dark"] .players-page .player-table {
+  margin: 0;
+  border-spacing: 0;
+}
+
+.app-shell[data-theme="dark"] .players-page .player-table thead th {
+  height: 40px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--lbp-line);
+  color: var(--lbp-muted);
+  background: rgba(21,31,53,0.9);
+  font: 700 12px "Barlow Condensed", sans-serif;
+  letter-spacing: 0.22em;
+}
+
+/* Wider screens: the name cell is a real table cell (a flex cell doesn't fill
+   its column, leaving a band with no row colour). The avatar and name sit
+   side by side as inline blocks instead. */
+@media (min-width: 721px) {
+  .app-shell[data-theme="dark"] .players-page .player-table-identity {
+    display: table-cell;
+    white-space: nowrap;
+  }
+
+  .app-shell[data-theme="dark"] .players-page .player-table-identity > * {
+    display: inline-flex;
+    vertical-align: middle;
+  }
+
+  .app-shell[data-theme="dark"] .players-page .player-table-identity > .player-identity-content {
+    flex-direction: column;
+    margin-left: 12px;
+  }
+}
+
+/* Row colours go on the cells so every cell in a row matches. */
+.app-shell[data-theme="dark"] .players-page .player-table tbody tr,
+.app-shell[data-theme="dark"] .players-page .player-table tbody tr > * {
+  background: transparent;
+}
+
+.app-shell[data-theme="dark"] .players-page .player-table tbody tr:nth-child(even) > * {
+  background: rgba(21,31,53,0.38);
+}
+
+.app-shell[data-theme="dark"] .players-page .player-table tbody tr:hover > * {
+  background: rgba(59,130,246,0.1);
+}
+
+.app-shell[data-theme="dark"] .players-page .player-table tbody th,
+.app-shell[data-theme="dark"] .players-page .player-table tbody td {
+  border-bottom: 1px solid rgba(41,55,80,0.6);
+  color: var(--lbp-text);
+  font: 700 18px "Barlow Condensed", sans-serif;
+}
+
+.app-shell[data-theme="dark"] .players-page .player-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.app-shell[data-theme="dark"] .players-page .leader-name {
+  font: 700 16px "Barlow", sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.app-shell[data-theme="dark"] .players-page .leader-meta {
+  font: 600 11px "Barlow Condensed", sans-serif;
+  letter-spacing: 0.16em;
+}
+
+.app-shell[data-theme="dark"] .players-page .leader-avatar,
+.app-shell[data-theme="dark"] .queue-page .leader-avatar {
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--lbp-blue), var(--lbp-cyan));
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 800;
+}
+
+/* ---------- Queue & Courts ---------- */
+.app-shell[data-theme="dark"] .queue-page .lb-page-controls select {
+  min-height: 33px;
+}
+
+/* Courts sit without a frame: no border, no card background. */
+.app-shell[data-theme="dark"] .lb-page .court-card:not(.mq-card) {
+  overflow: hidden;
+  padding-right: 0;
+  padding-left: 0;
+  border: 0;
+  background: none;
+}
+
+.app-shell[data-theme="dark"] .queue-page .court-card > h3 {
+  border-bottom-color: var(--lbp-line);
+  color: var(--lbp-text);
+  font-family: "Anton", sans-serif;
+  font-size: 24px;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+.app-shell[data-theme="dark"] .queue-page .court-card > h3 .muted {
+  font-family: "Barlow Condensed", sans-serif;
+  font-style: normal;
+  letter-spacing: 0.14em;
+}
+
+/* Player badges on the courts (and the finish-game court preview) use the
+   same blue→cyan initials badge as the match queue and leaderboard. */
+.app-shell[data-theme="dark"] .court-avatar {
+  border: 1px solid rgba(255,255,255,0.28);
+  border-radius: 9px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--lbp-blue, #3b82f6), var(--lbp-cyan, #22d3ee));
+  box-shadow: 0 6px 14px rgba(2,6,23,0.35);
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.app-shell[data-theme="dark"] .court-avatar.empty {
+  border: 1.5px dashed rgba(255,255,255,0.45);
+  color: rgba(255,255,255,0.85);
+  background: rgba(2,6,23,0.28);
+  box-shadow: none;
+}
+
+.app-shell[data-theme="dark"] .court-avatar:hover {
+  border-color: rgba(255,255,255,0.7);
+}
+
+.app-shell[data-theme="dark"] .court-surface .court-player-name {
+  color: #fff;
+  font-family: "Barlow", sans-serif;
+  font-weight: 700;
+  text-shadow: 0 1px 3px rgba(2,6,23,0.6);
+}
+
+.app-shell[data-theme="dark"] .queue-page .match-queue,
+.app-shell[data-theme="dark"] .queue-page .player-status-list {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Match queue cards: number | Team A vs Team B | actions */
+.app-shell[data-theme="dark"] .queue-page .match-queue-items {
+  display: grid;
+  gap: 10px;
+  max-height: 60vh;
+  padding-right: 4px;
+}
+
+.mq-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: clamp(12px, 2vw, 24px);
+  padding: 14px 18px;
+  overflow: hidden;
+  border: 1px solid var(--lbp-line);
+  border-radius: 18px;
+  color: var(--lbp-text);
+  background: linear-gradient(160deg, rgba(21,31,53,0.95), rgba(11,18,34,0.95));
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.mq-card.next {
+  border-color: rgba(34,211,238,0.45);
+  border-top: 3px solid var(--lbp-cyan);
+  background: linear-gradient(135deg, rgba(34,211,238,0.14), rgba(21,31,53,0.94) 45%, rgba(11,18,34,0.96));
+}
+
+.mq-card.dragging {
+  z-index: 3;
+  border-color: var(--lbp-blue);
+  box-shadow: 0 18px 34px rgba(0,0,0,0.45), 0 0 0 1px rgba(59,130,246,0.45);
+}
+
+.mq-rank {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 74px;
+}
+
+.mq-number {
+  display: block;
+  padding-right: 0.1em;
+  color: var(--lbp-muted);
+  font: 400 40px/1 "Anton", sans-serif;
+  font-style: italic;
+}
+
+.mq-card.next .mq-number {
+  color: var(--lbp-cyan);
+}
+
+.mq-label {
+  display: block;
+  margin-top: 4px;
+  color: var(--lbp-muted);
+  font: 700 11px "Barlow Condensed", sans-serif;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.mq-card.next .mq-label {
+  color: var(--lbp-cyan);
+}
+
+.mq-teams {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(10px, 2vw, 22px);
+  min-width: 0;
+}
+
+.mq-team {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mq-team.team-b {
+  justify-items: end;
+  text-align: right;
+}
+
+.mq-team-label {
+  color: var(--lbp-muted);
+  font: 700 11px "Barlow Condensed", sans-serif;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.mq-player {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mq-team.team-b .mq-player {
+  flex-direction: row-reverse;
+}
+
+.mq-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--lbp-blue), var(--lbp-cyan));
+  font: 800 14px "Barlow Condensed", sans-serif;
+}
+
+.mq-name {
+  overflow: hidden;
+  font: 700 16px "Barlow", sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mq-vs {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--lbp-line);
+  border-radius: 50%;
+  color: var(--lbp-muted);
+  background: rgba(2,6,23,0.6);
+  font: 400 18px "Anton", sans-serif;
+  font-style: italic;
+}
+
+/* Actions: a vertical column on the card's right edge, set off by a line. */
+.mq-card {
+  align-items: stretch;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-right: 0;
+}
+
+.mq-rank,
+.mq-teams {
+  align-self: center;
+  padding: 14px 0;
+}
+
+.mq-actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-left: 1px solid var(--lbp-line);
+  background: rgba(2,6,23,0.35);
+}
+
+.app-shell[data-theme="dark"] .lb-page .mq-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  min-width: 30px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 1px solid var(--lbp-line);
+  border-radius: 8px;
+  color: var(--lbp-muted);
+  background: rgba(2,6,23,0.55);
+  box-shadow: none;
+}
+
+.app-shell[data-theme="dark"] .lb-page .mq-btn:not(:disabled):hover {
+  border-color: rgba(59,130,246,0.6);
+  color: var(--lbp-text);
+}
+
+.app-shell[data-theme="dark"] .lb-page .mq-btn.assign {
+  border-color: transparent;
+  color: #fff;
+  background: linear-gradient(135deg, var(--lbp-blue), var(--lbp-cyan));
+  box-shadow: 0 6px 14px rgba(59,130,246,0.28);
+}
+
+.app-shell[data-theme="dark"] .lb-page .mq-btn:disabled {
+  opacity: 0.4;
+  box-shadow: none;
+  cursor: default;
+}
+
+.app-shell[data-theme="dark"] .queue-page .player-status-card .leader-name {
+  font: 700 16px "Barlow", sans-serif;
+  text-transform: none;
+}
+
+.app-shell[data-theme="dark"] .queue-page .player-status-metrics {
+  font-family: "Barlow Condensed", sans-serif;
+}
+
+/* ---------- Match History ---------- */
+.app-shell[data-theme="dark"] .match-history-panel .match-history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.app-shell[data-theme="dark"] .match-history-panel .match-history-item {
+  margin: 0;
+}
+
+.app-shell[data-theme="dark"] .match-history-panel .match-history-index {
+  border: 0;
+  color: var(--lbp-muted);
+  background: none;
+  font-family: "Anton", sans-serif;
+  font-size: 26px;
+  font-style: italic;
+  font-weight: 400;
+}
+
+.app-shell[data-theme="dark"] .match-history-panel .match-history-date {
+  color: var(--lbp-muted);
+  font: 600 13px "Barlow Condensed", sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* Teams on one line each side of the score; winner bright with a gold WIN
+   badge, loser dimmed. */
+.app-shell[data-theme="dark"] .match-history-panel .match-history-teams {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(10px, 2vw, 24px);
+}
+
+.app-shell[data-theme="dark"] .match-history-panel .mh-team {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--lbp-text);
+  font: 700 17px "Barlow", sans-serif;
+}
+
+.app-shell[data-theme="dark"] .match-history-panel .mh-team.team-b {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.app-shell[data-theme="dark"] .match-history-panel .mh-team.lost {
+  color: var(--lbp-muted);
+  font-weight: 600;
+}
+
+.app-shell[data-theme="dark"] .match-history-panel .mh-names {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell[data-theme="dark"] .match-history-panel .mh-win {
+  flex: none;
+  padding: 3px 8px;
+  border: 1px solid rgba(245,197,66,0.5);
+  border-radius: 999px;
+  color: var(--lbp-gold);
+  background: rgba(245,197,66,0.1);
+  font: 800 11px "Barlow Condensed", sans-serif;
+  font-style: normal;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.app-shell[data-theme="dark"] .match-history-panel .match-history-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border: 1px solid var(--lbp-line);
+  border-radius: 12px;
+  color: var(--lbp-muted);
+  background: rgba(2,6,23,0.6);
+  font: 800 26px "Barlow Condensed", sans-serif;
+}
+
+.app-shell[data-theme="dark"] .match-history-panel .match-history-score .won {
+  color: var(--lbp-text);
+}
+
+.app-shell[data-theme="dark"] .match-history-panel .match-history-score b {
+  color: var(--lbp-muted);
+  font-weight: 600;
+}
+
+/* ---------- Clubs ---------- */
+.app-shell[data-theme="dark"] .clubs-page table {
+  overflow: hidden;
+  border: 1px solid var(--lbp-line);
+  border-radius: 18px;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: rgba(11,18,34,0.85);
+}
+
+.app-shell[data-theme="dark"] .clubs-page th {
+  color: var(--lbp-muted);
+  background: rgba(21,31,53,0.9);
+  font: 700 12px "Barlow Condensed", sans-serif;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+/* Phones: header controls share one row and stretch. */
+@media (max-width: 720px) {
+  .lb-page-header .lb-page-controls {
+    flex-wrap: wrap;
+  }
+
+  .app-shell[data-theme="dark"] .players-page .lb-page-controls {
+    flex-wrap: wrap;
+  }
+
+  .app-shell[data-theme="dark"] .players-page .lb-page-controls .search-player-input {
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: none;
+  }
+
+  /* Phones show each player as its own card, so drop the table frame and cell lines. */
+  .app-shell[data-theme="dark"] .players-page .player-table-wrap {
+    overflow: visible;
+    border: 0;
+    background: none;
+  }
+
+  .app-shell[data-theme="dark"] .players-page .player-table tbody th,
+  .app-shell[data-theme="dark"] .players-page .player-table tbody td,
+  .app-shell[data-theme="dark"] .players-page .player-table tbody tr:nth-child(even) > * {
+    border-bottom: 0;
+    background: transparent;
+  }
+
+  .app-shell[data-theme="dark"] .players-page .player-table tbody tr {
+    border: 1px solid var(--lbp-line);
+    border-radius: 16px;
+    background: linear-gradient(160deg, rgba(21,31,53,0.95), rgba(11,18,34,0.95));
+  }
+
+  .app-shell[data-theme="dark"] .match-history-panel .match-history-index {
+    font-size: 20px;
+  }
+
+  .app-shell[data-theme="dark"] .match-history-panel .match-history-score {
+    padding: 5px 10px;
+    font-size: 20px;
+  }
+
+  /* Phones stack names under the WIN badge on both sides so rows stay even. */
+  .app-shell[data-theme="dark"] .match-history-panel .mh-team {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+    font-size: 15px;
+  }
+
+  .app-shell[data-theme="dark"] .match-history-panel .mh-team.team-b {
+    align-items: flex-end;
+  }
+
+  .app-shell[data-theme="dark"] .match-history-panel .mh-win {
+    order: -1;
+    padding: 2px 7px;
+    font-size: 10px;
+  }
+
+  .app-shell[data-theme="dark"] .match-history-panel .mh-names {
+    white-space: normal;
+  }
+
+  /* Match queue: number and buttons on top, the two teams across the full width. */
+  /* Number on top, teams below, the action column down the right edge. */
+  .mq-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "rank actions"
+      "teams actions";
+    column-gap: 12px;
+    row-gap: 0;
+    padding-left: 14px;
+  }
+
+  .mq-rank {
+    padding: 12px 0 8px;
+  }
+
+  .mq-teams {
+    padding: 0 0 12px;
+  }
+
+  .mq-actions {
+    padding: 8px 10px;
+  }
+
+  .mq-rank { grid-area: rank; }
+  .mq-actions { grid-area: actions; }
+  .mq-teams { grid-area: teams; }
+
+  .mq-rank > div {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .mq-number {
+    font-size: 30px;
+  }
+
+  .mq-teams {
+    gap: 8px;
+  }
+
+  .mq-name {
+    font-size: 14px;
+  }
+
+  .mq-avatar {
+    width: 26px;
+    height: 26px;
+    font-size: 12px;
+  }
+
+  .mq-vs {
+    width: 34px;
+    height: 34px;
+    font-size: 14px;
+  }
+
+
+}
+
+/* ------------------------------------------------------------------
+   Buttons, app-wide, in the leaderboard style: gradient primary with a
+   condensed uppercase label, outlined secondary, red-outlined delete.
+   The match queue's icon buttons (.mq-btn) keep their own look.
+   ------------------------------------------------------------------ */
+.app-shell[data-theme="dark"] .btn:not(.mq-btn) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--action-primary, #3b82f6), var(--accent-cyan, #22d3ee));
+  box-shadow: 0 8px 18px rgba(59,130,246,0.28);
+  font: 700 14px "Barlow Condensed", sans-serif;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-transform: uppercase;
+  transition: filter 140ms ease, border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+
+/* Icons inside buttons keep their size instead of shrinking in the flex row. */
+.app-shell[data-theme="dark"] .btn svg {
+  flex: none;
+}
+
+.app-shell[data-theme="dark"] .btn:not(.mq-btn):hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.app-shell[data-theme="dark"] .btn:not(.mq-btn):disabled {
+  opacity: 0.45;
+  box-shadow: none;
+  cursor: default;
+  filter: none;
+}
+
+.app-shell[data-theme="dark"] .btn.secondary:not(.mq-btn),
+.app-shell[data-theme="dark"] .btn.player-edit-btn,
+.app-shell[data-theme="dark"] .btn.player-actions-toggle {
+  border-color: #293750;
+  color: #f4f7ff;
+  background: rgba(2,6,23,0.55);
+  box-shadow: none;
+}
+
+.app-shell[data-theme="dark"] .btn.secondary:not(.mq-btn):hover:not(:disabled),
+.app-shell[data-theme="dark"] .btn.player-edit-btn:hover,
+.app-shell[data-theme="dark"] .btn.player-actions-toggle:hover {
+  border-color: rgba(59,130,246,0.65);
+  background: rgba(59,130,246,0.12);
+  filter: none;
+}
+
+.app-shell[data-theme="dark"] .btn.warn,
+.app-shell[data-theme="dark"] .btn.player-delete-btn {
+  border-color: rgba(248,113,113,0.45);
+  color: #fca5a5;
+  background: rgba(248,113,113,0.08);
+  box-shadow: none;
+}
+
+.app-shell[data-theme="dark"] .btn.warn:hover:not(:disabled),
+.app-shell[data-theme="dark"] .btn.player-delete-btn:hover {
+  border-color: rgba(248,113,113,0.8);
+  background: rgba(248,113,113,0.16);
+  filter: none;
+}
+
+.app-shell[data-theme="dark"] .btn.small:not(.mq-btn),
+.app-shell[data-theme="dark"] .player-table-actions .btn {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+/* The per-row Actions toggle is a phone-only control (desktop shows the
+   buttons inline), so keep it hidden on wider screens. */
+@media (min-width: 721px) {
+  .app-shell[data-theme="dark"] .btn.player-actions-toggle {
+    display: none;
+  }
+}
+
+/* Icon-only edit button on match history cards */
+.app-shell[data-theme="dark"] .btn.match-history-edit {
+  width: 32px;
+  min-width: 32px;
+  padding: 0;
+  color: #a7b4cc;
+}
+
+/* ------------------------------------------------------------------
+   Badges, app-wide: one pill shape, coloured by meaning.
+   green = live / in play, blue = waiting / ready, gold = winner,
+   neutral = idle / empty.
+   ------------------------------------------------------------------ */
+.app-shell[data-theme="dark"] .badge,
+.app-shell[data-theme="dark"] .share-live,
+.app-shell[data-theme="dark"] .mh-win,
+.app-shell[data-theme="dark"] .player-status-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border: 1px solid #293750;
+  border-radius: 999px;
+  color: #a7b4cc;
+  background: rgba(2,6,23,0.6);
+  box-shadow: none;
+  font: 700 11px/1.2 "Barlow Condensed", sans-serif;
+  font-style: normal;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.app-shell[data-theme="dark"] .badge.green,
+.app-shell[data-theme="dark"] .share-live,
+.app-shell[data-theme="dark"] .player-status-text.playing,
+.app-shell[data-theme="dark"] .player-status-text.ready {
+  border-color: rgba(52,211,153,0.45);
+  color: #6ee7b7;
+  background: rgba(16,70,45,0.55);
+}
+
+.app-shell[data-theme="dark"] .badge.blue,
+.app-shell[data-theme="dark"] .player-status-text.waiting {
+  border-color: rgba(59,130,246,0.5);
+  color: #93c5fd;
+  background: rgba(30,58,138,0.45);
+}
+
+.app-shell[data-theme="dark"] .badge.gold,
+.app-shell[data-theme="dark"] .mh-win {
+  border-color: rgba(245,197,66,0.5);
+  color: #f5c542;
+  background: rgba(245,197,66,0.1);
+}
+
+/* The live dot inside Setup's Live badge */
+.app-shell[data-theme="dark"] .share-live i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: none;
+}
+
+/* Player-queue tags sit on the avatar corner, so they stay tiny. */
+.app-shell[data-theme="dark"] .player-status-text {
+  position: absolute;
+  padding: 2px 6px;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  box-shadow: 0 0 0 2px #0b1222;
+}
+
+/* ---- Matching sizes for things that do the same job ---- */
+/* Header buttons, Export and the dropdowns beside them line up. */
+.app-shell[data-theme="dark"] .lb-page .lb-page-controls select,
+.app-shell[data-theme="dark"] .lb-page .lb-page-controls .search-player-input {
+  min-height: 36px;
+  border-radius: 10px;
+}
+
+.app-shell[data-theme="dark"] .lb-page-export {
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font: 700 14px "Barlow Condensed", sans-serif;
+  letter-spacing: 0.12em;
+}
+
+/* Every small icon button (match queue tools, match history edit) */
+.app-shell[data-theme="dark"] .lb-page .mq-btn,
+.app-shell[data-theme="dark"] .btn.match-history-edit {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  border: 1px solid #293750;
+  border-radius: 8px;
+  color: #a7b4cc;
+  background: rgba(2,6,23,0.55);
+  box-shadow: none;
+}
+
+.app-shell[data-theme="dark"] .lb-page .mq-btn.assign {
+  border-color: transparent;
+  color: #fff;
+  background: linear-gradient(135deg, #3b82f6, #22d3ee);
+  box-shadow: 0 6px 14px rgba(59,130,246,0.28);
+}
+
+.app-shell[data-theme="dark"] .lb-page .mq-btn:not(:disabled):hover,
+.app-shell[data-theme="dark"] .btn.match-history-edit:hover {
+  border-color: rgba(59,130,246,0.65);
+  color: #f4f7ff;
+}
+
+/* Player avatars in pop-ups (manual match, court player picker, edit match,
+   "Who am I?") use the same initials badge as the rest of the app. */
+.app-shell[data-theme="dark"] .court-player-option-avatar {
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 9px;
+  color: #fff;
+  background: linear-gradient(135deg, #3b82f6, #22d3ee);
+  font: 800 13px "Barlow Condensed", sans-serif;
+  letter-spacing: 0.02em;
+}
+
+/* Match queue: VS sits at the exact centre of the card. The teams wrapper is
+   flattened into the card grid, and the number column and the action column
+   are the same width, so the middle column is the card's true centre. */
+.mq-card {
+  grid-template-columns: 92px minmax(0, 1fr) auto minmax(0, 1fr) 92px;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.mq-teams {
+  display: contents;
+}
+
+.mq-rank {
+  grid-column: 1;
+  padding-left: 16px;
+}
+
+.mq-team {
+  align-self: center;
+  padding: 14px 0;
+}
+
+.mq-team.team-a { grid-column: 2; }
+.mq-vs { grid-column: 3; align-self: center; justify-self: center; }
+.mq-team.team-b { grid-column: 4; }
+
+.mq-actions {
+  grid-column: 5;
+  align-items: center;
+}
+
+@media (max-width: 720px) {
+  /* Phones: number on top, teams below, actions down the right. The outer
+     columns are equal again so VS stays centred on the card. */
+  .mq-card {
+    grid-template-columns: 52px minmax(0, 1fr) auto minmax(0, 1fr) 52px;
+    grid-template-areas: none;
+    column-gap: 10px;
+    padding-left: 0;
+  }
+
+  .mq-rank {
+    grid-column: 1 / 5;
+    grid-row: 1;
+    padding: 12px 0 8px 14px;
+  }
+
+  .mq-team.team-a {
+    grid-column: 1 / 3;
+    grid-row: 2;
+    padding: 0 0 12px 14px;
+  }
+
+  .mq-vs {
+    grid-column: 3;
+    grid-row: 2;
+    margin-bottom: 12px;
+  }
+
+  .mq-team.team-b {
+    grid-column: 4;
+    grid-row: 2;
+    padding: 0 0 12px;
+  }
+
+  .mq-actions {
+    grid-column: 5;
+    grid-row: 1 / 3;
+  }
+}
+
+/* Page header without the logo row: the title starts at the top, and the
+   info pill sits above the page's controls on the right. */
+.lb-page-header .lb-poster-title {
+  margin-top: 0;
+}
+
+.lb-page-header-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+@media (max-width: 720px) {
+  .lb-page-header .lb-page-title-row {
+    row-gap: 14px;
+  }
+
+  .lb-page-header-side {
+    width: 100%;
+    align-items: flex-start;
+  }
+
+  .lb-page-header-side .lb-page-controls {
+    width: 100%;
   }
 }

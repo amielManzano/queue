@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { GripVertical } from 'lucide-react'
+import { ArrowRight, GripVertical, Pencil, Undo2 } from 'lucide-react'
 import { skillLabel } from '../utils/matching.js'
+import PageHeader from './PageHeader.jsx'
 import courtBlueprint from '../assets/court-blueprint.webp'
 
 // Drag-to-reorder for a vertical list. Uses pointer events (not HTML5 drag and
@@ -251,7 +252,8 @@ export default function QueueCourtsPanel({
   canAnnounce = false,
   onDoneGame,
   onSwapCourtPlayer,
-  onRenameCourt
+  onRenameCourt,
+  readOnly = false
 }) {
   const [assignStrategy, setAssignStrategy] = useState('fairRotation')
   const [doneModalCourt, setDoneModalCourt] = useState(null)
@@ -277,10 +279,8 @@ export default function QueueCourtsPanel({
 
   const byId = Object.fromEntries(players.map((p) => [p.id, p]))
   const playerName = (id) => byId[id]?.name || '—'
-  const queuePlayerName = (id) => {
-    const name = playerName(id)
-    return name.length > 16 ? `${name.slice(0, 13)}...` : name
-  }
+  // Two-letter initials, the same on every badge in the app ("Jung Hao" -> "JH")
+  const initials = (name = '') => name.split(' ').filter(Boolean).map((w) => w[0]).slice(0, 2).join('').toUpperCase()
   const queuedPlayers = queue
     .filter((entry) => byId[entry.id])
     .map((entry) => ({ ...byId[entry.id], queuedAt: entry.queuedAt }))
@@ -435,11 +435,30 @@ export default function QueueCourtsPanel({
 
   return (
     <>
-        <div className="panel">
-        <div className="page-heading">
-          <h2>Courts</h2>
-          <span>{courts.length} available</span>
-        </div>
+        <div className="panel lb-page queue-page">
+        <PageHeader
+          meta={<><b>{courts.length}</b> courts · <b>{queuedPlayers.length}</b> waiting</>}
+          kicker="Live"
+          title="Courts"
+          tag={`${emptyCourts.length} open · ${matchQueue.length} match${matchQueue.length === 1 ? '' : 'es'} queued`}
+        >
+          {!readOnly && (
+            <>
+              <select value={assignStrategy} onChange={(e) => setAssignStrategy(e.target.value)} aria-label="Matching strategy">
+                <option value="fairRotation">Fair Rotation</option>
+                <option value="balancedSkill">Balanced Skill</option>
+                <option value="sameLevel">Same Level</option>
+                <option value="random">Random</option>
+              </select>
+              <button className="btn gold queue-match-primary" onClick={() => onAutoMatch && onAutoMatch(assignStrategy)}>
+                Auto-assign
+              </button>
+              <button className="btn secondary queue-match-secondary" onClick={() => { setManualSearch(''); setManualMatchOpen(true) }}>
+                Manual match
+              </button>
+            </>
+          )}
+        </PageHeader>
         <div className="courts-grid">
           {courts.map((c) => (
             <div
@@ -482,7 +501,7 @@ export default function QueueCourtsPanel({
                     {c.name}
                   </span>
                 )}
-                <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>
+                <span className={`badge ${c.status === 'empty' ? 'neutral' : c.status === 'assigned' ? 'blue' : 'green'}`}>
                   {c.status === 'empty' ? 'Empty' : c.status === 'assigned' ? 'Ready' : 'In progress'}
                   {c.status === 'playing' && formatGameDuration(c.startedAt) && ` · ${formatGameDuration(c.startedAt)}`}
                 </span>
@@ -600,24 +619,6 @@ export default function QueueCourtsPanel({
           ))}
         </div>
 
-        <div className="row queue-match-controls" style={{ marginBottom: 12, alignItems: 'center' }}>
-            <select value={assignStrategy} onChange={(e) => setAssignStrategy(e.target.value)} style={{ padding: '8px 10px', borderRadius: 10 }}>
-              <option value="fairRotation">Fair Rotation</option>
-              <option value="balancedSkill">Balanced Skill</option>
-              <option value="sameLevel">Same Level</option>
-              <option value="random">Random</option>
-            </select>
-
-            <button className="btn gold queue-match-primary" onClick={() => onAutoMatch && onAutoMatch(assignStrategy)}>
-              Auto-assign
-            </button>
-            <button className="btn secondary queue-match-secondary" onClick={() => { setManualSearch(''); setManualMatchOpen(true) }}>
-              Manual match
-            </button>
-
-            <span className="muted">Choose a matching strategy: Fair Rotation, Balanced Skill, Same Level, or Random</span>
-        </div>
-
         <div className="match-queue">
           <div className="page-heading">
             <h2>Match queue</h2>
@@ -632,12 +633,11 @@ export default function QueueCourtsPanel({
             <div className="match-queue-items" ref={matchListRef}>
               {matchQueue.map((match, index) => (
                 <div
-                  className={`court-card match-queue-card${matchReorder.drag?.id === match.id ? ' dragging' : ''}`}
+                  className={`mq-card${index === 0 ? ' next' : ''}${matchReorder.drag?.id === match.id ? ' dragging' : ''}`}
                   key={match.id}
                   style={matchReorder.itemStyle(index)}
                 >
-                <div className="match-queue-card-top">
-                  <h3 className="match-queue-card-heading">
+                  <div className="mq-rank">
                     {/* the public view passes no reorder handler, so it gets no handle */}
                     {onReorderMatchQueue && matchQueue.length > 1 && (
                       <button
@@ -650,70 +650,57 @@ export default function QueueCourtsPanel({
                         <GripVertical size={16} aria-hidden="true" />
                       </button>
                     )}
-                    <span className="match-number">{index + 1}</span>
-                    <span>Match</span>
-                  </h3>
-                  <div className="row match-queue-actions">
+                    <div>
+                      <span className="mq-number">{String(index + 1).padStart(2, '0')}</span>
+                      <span className="mq-label">{index === 0 ? 'Next up' : 'Match'}</span>
+                    </div>
+                  </div>
+
+                  <div className="mq-teams">
+                    {[['A', match.teamA], ['B', match.teamB]].map(([team, ids]) => (
+                      <React.Fragment key={team}>
+                        {team === 'B' && <span className="mq-vs">VS</span>}
+                        <div className={`mq-team team-${team.toLowerCase()}`}>
+                          <span className="mq-team-label">Team {team}</span>
+                          {ids.map((id) => (
+                            <span key={id} className="mq-player" title={playerName(id)}>
+                              <span className="mq-avatar">{initials(playerName(id))}</span>
+                              <span className="mq-name">{playerName(id)}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </React.Fragment>
+                    ))}
+                  </div>
+
+                  {/* Actions stack in a column on the card's right edge. */}
+                  <div className="mq-actions">
                     <button
-                      className="btn match-queue-action match-queue-assign"
+                      className="btn mq-btn assign"
                       aria-label="Add match to court"
-                      title="Add match to court"
+                      title={emptyCourts.length === 0 ? 'No free court' : 'Add match to court'}
                       disabled={emptyCourts.length === 0}
                       onClick={() => setAssigningMatch(match)}
                     >
-                        <span aria-hidden="true">&#10132;</span>
+                      <ArrowRight size={15} strokeWidth={2.5} aria-hidden="true" />
                     </button>
                     <button
-                      className="btn secondary match-queue-action"
+                      className="btn secondary mq-btn"
                       aria-label="Edit match"
                       title="Edit match"
                       onClick={() => openMatchEditor(match)}
                     >
-                      <span aria-hidden="true">&#9998;</span>
+                      <Pencil size={14} strokeWidth={2.25} aria-hidden="true" />
                     </button>
                     <button
-                      className="btn secondary match-queue-action match-queue-return"
+                      className="btn secondary mq-btn"
                       aria-label="Return players to queue"
                       title="Return players to queue"
                       onClick={() => onClearMatch(match.id)}
                     >
-                      <span aria-hidden="true">&#8634;</span>
+                      <Undo2 size={14} strokeWidth={2.25} aria-hidden="true" />
                     </button>
                   </div>
-                </div>
-                <div className="match-teams">
-                  <div className="team-line">
-                    <span className="team-label team-a-label">Team A</span>
-                    <div className="team-players">
-                      {match.teamA.map((id) => (
-                        <span key={id} className="player-chip" style={{ marginRight: 6 }}>
-                    <div style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-                      <div className="leader-avatar" style={{ width: 28, height: 28, fontSize: 12, borderRadius: 8 }}>
-                        {playerName(id).split(' ').map((w) => w[0]).slice(0,2).join('').toUpperCase()}
-                      </div>
-                      <div style={{ fontWeight: 700, fontSize: 13 }} title={playerName(id)}>{queuePlayerName(id)}</div>
-                    </div>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="vs">VS</div>
-                  <div className="team-line">
-                    <span className="team-label team-b-label">Team B</span>
-                    <div className="team-players">
-                      {match.teamB.map((id) => (
-                        <span key={id} className="player-chip" style={{ marginRight: 6 }}>
-                    <div style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-                      <div className="leader-avatar" style={{ width: 28, height: 28, fontSize: 12, borderRadius: 8 }}>
-                        {playerName(id).split(' ').map((w) => w[0]).slice(0,2).join('').toUpperCase()}
-                      </div>
-                      <div style={{ fontWeight: 700, fontSize: 13 }} title={playerName(id)}>{queuePlayerName(id)}</div>
-                    </div>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
                 </div>
               ))}
             </div>
@@ -859,7 +846,7 @@ export default function QueueCourtsPanel({
                 return (
                   <div className={`court-player-option manual-match-option${selectionIndex >= 0 ? ` selected team-${team}` : ''}`} key={player.id}>
                     <div className="court-player-option-info">
-                      <div className="court-player-option-avatar">{player.name.charAt(0).toUpperCase()}</div>
+                      <div className="court-player-option-avatar">{initials(player.name)}</div>
                       <div>
                         <div className="court-player-option-name" title={player.name}>{player.name}</div>
                         <div className="muted court-player-option-skill">{selectionIndex >= 0 ? `Team ${team.toUpperCase()} · Player ${(selectionIndex % 2) + 1}` : queuedPlayerIds.has(player.id) ? 'In queue' : skillLabel(player.skillLevel)}</div>
@@ -902,7 +889,7 @@ export default function QueueCourtsPanel({
                 return filtered.map((player) => (
                   <div className="court-player-option" key={player.id}>
                     <div className="court-player-option-info">
-                      <div className="court-player-option-avatar">{player.name.charAt(0).toUpperCase()}</div>
+                      <div className="court-player-option-avatar">{initials(player.name)}</div>
                       <div>
                         <div className="court-player-option-name">{player.name}</div>
                         <div className="muted court-player-option-skill">{skillLabel(player.skillLevel)}</div>
@@ -964,7 +951,7 @@ export default function QueueCourtsPanel({
                 return (
                   <div className={`court-player-option manual-match-option${selectionIndex >= 0 ? ` selected team-${team}` : ''}`} key={player.id}>
                     <div className="court-player-option-info">
-                      <div className="court-player-option-avatar">{player.name.charAt(0).toUpperCase()}</div>
+                      <div className="court-player-option-avatar">{initials(player.name)}</div>
                       <div>
                         <div className="court-player-option-name">{player.name}</div>
                         <div className="muted court-player-option-skill">{selectionIndex >= 0 ? `Team ${team.toUpperCase()} · Player ${(selectionIndex % 2) + 1}` : skillLabel(player.skillLevel)}</div>

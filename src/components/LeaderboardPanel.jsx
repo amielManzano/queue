@@ -2,8 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import domtoimage from "dom-to-image-more";
 import LeaderboardPoster, { POSTER_SIZE, PODIUM_TONES, PosterMedal, PosterStats } from "./LeaderboardPoster.jsx";
-
-const clashLogo = "/clash-logo.png";
+import PageHeader from "./PageHeader.jsx";
 
 function isIOS() {
   if (typeof navigator === "undefined") return false;
@@ -254,20 +253,12 @@ export default function LeaderboardPanel({ players: sessionPlayers, overallPlaye
 
   return (
     <div className="lb-page">
-      <div className="lb-page-head">
-        <div className="lb-poster-brand"><img src={clashLogo} alt="" />Leaderboard</div>
-        <div className="lb-poster-date">As of <b>{displayedDate}</b></div>
-      </div>
-
-      <div className="lb-page-title-row">
-        <div>
-          <div className="lb-poster-title">
-            <span className="lb-poster-kicker">{scopeLabel}</span>
-            <span className="lb-poster-headline">Leaderboard</span>
-          </div>
-          <div className="lb-poster-tag"><i />{rankByLabel}</div>
-        </div>
-        <div className="lb-page-controls">
+      <PageHeader
+        meta={<>As of <b>{displayedDate}</b></>}
+        kicker={`${(clubName || "CLASH").trim()} · ${scopeLabel}`}
+        title="Leaderboard"
+        tag={rankByLabel}
+      >
           {!overallOnly && !sessionOnly && (
             <select value={scope} onChange={(e) => setScope(e.target.value)} aria-label="Leaderboard scope">
               <option value="session">Session leaderboard</option>
@@ -299,8 +290,7 @@ export default function LeaderboardPanel({ players: sessionPlayers, overallPlaye
               </div>
             )}
           </div>
-        </div>
-      </div>
+      </PageHeader>
       {exportError && <div className="export-error" role="alert">{exportError}</div>}
 
       {ranked.length === 0 ? (

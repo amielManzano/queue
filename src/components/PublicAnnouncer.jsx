@@ -136,7 +136,7 @@ export default function PublicAnnouncer({ courts = [], players = [], queue = [],
               {filteredPlayers.map((player) => (
                 <div className="court-player-option" key={player.id}>
                   <div className="court-player-option-info">
-                    <div className="court-player-option-avatar">{(player.name || '?').charAt(0).toUpperCase()}</div>
+                    <div className="court-player-option-avatar">{(player.name || '?').split(' ').filter(Boolean).map((w) => w[0]).slice(0, 2).join('').toUpperCase()}</div>
                     <div className="court-player-option-name">{player.name}</div>
                   </div>
                   {player.id === meId ? (

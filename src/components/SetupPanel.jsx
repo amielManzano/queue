@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
+import PageHeader from './PageHeader.jsx'
 
 export default function SetupPanel({ sessionId, sessionName, connected, onConnect, firebaseError, courtFee, shuttlePrice, numCourts, onUpdateSettings, onClearSession, onNewSession, onImportImageData, imageImporting, imageImportStage, onSeedTestData, onSeedPlayers, publicShareUrl, overallShareUrl, user, onLogout, clubName, onSaveClubName }) {
   const [idInput, setIdInput] = useState(sessionId || '')
@@ -30,11 +31,20 @@ export default function SetupPanel({ sessionId, sessionName, connected, onConnec
   }, [overallShareUrl])
 
   return (
-    <div className="panel">
-      <div className="page-heading">
-        <h2>Session</h2>
-        <span>Configuration</span>
-      </div>
+    <div className="panel lb-page setup-page">
+      <PageHeader
+        meta={connected ? <><b>Live</b> · synced</> : 'Not connected'}
+        kicker={clubName || 'Club'}
+        title="Session"
+        tag={connected ? (sessionName || sessionId) : 'Start or join a session'}
+      >
+        {connected && (
+          <>
+            <button className="btn" onClick={onNewSession} disabled={imageImporting}>New session</button>
+            <button className="btn secondary" onClick={() => onClearSession && onClearSession()} disabled={imageImporting}>Clear Session</button>
+          </>
+        )}
+      </PageHeader>
       {firebaseError && <div className="sync-status" role="status">{firebaseError}</div>}
       {user && (
         <div className="account-row" style={{ marginBottom: 14 }}>
@@ -48,7 +58,7 @@ export default function SetupPanel({ sessionId, sessionName, connected, onConnec
           <button className="btn secondary" onClick={() => onLogout && onLogout()}>Sign Out</button>
         </div>
       )}
-      {!connected ? (
+      {!connected && (
         <div className="row">
           <input
             placeholder="Session name e.g. clash-aug12"
@@ -58,16 +68,6 @@ export default function SetupPanel({ sessionId, sessionName, connected, onConnec
           <button className="btn" onClick={() => onConnect(idInput.trim())} disabled={!idInput.trim()}>
             Start / Join Session
           </button>
-        </div>
-      ) : (
-        <div className="session-toolbar">
-          <span className="muted">
-            Session: <strong style={{ color: 'var(--ink)' }}>{sessionName || sessionId}</strong> — synced live via Firebase
-          </span>
-          <div className="session-actions">
-            <button className="btn" onClick={onNewSession} disabled={imageImporting}>New session</button>
-            <button className="btn secondary" onClick={() => onClearSession && onClearSession()} disabled={imageImporting}>Clear Session</button>
-          </div>
         </div>
       )}
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { skillLabel } from '../utils/matching.js'
 import { computePayments } from '../utils/payment.js'
+import PageHeader from './PageHeader.jsx'
 
 export default function PlayersPanel({ players, games, courtFee, onAddPlayer, onEditSkill, onRemovePlayer, onAddToQueue, onRemoveFromQueue, queue, courts = [], onUpdatePlayer }) {
   const [name, setName] = useState('')
@@ -56,26 +57,25 @@ export default function PlayersPanel({ players, games, courtFee, onAddPlayer, on
   )
 
   return (
-    <div className="panel">
-      <div className="players-toolbar">
-        <div className="players-title-group">
-          <h2>Players</h2>
-          <span>{players.length} registered</span>
-          <div className="player-status-legend" aria-label="Player status legend">
-            <span><i className="available" />Available</span>
-            <span><i className="queue" />In queue</span>
-            <span><i className="court" />On court</span>
-          </div>
-        </div>
-        <div className="players-toolbar-actions">
-          <input
-            className="search-player-input"
-            placeholder="Search directory"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <button className="btn add-player-btn" onClick={() => setAddModalOpen(true)}>+ Add Player</button>
-        </div>
+    <div className="panel lb-page players-page">
+      <PageHeader
+        meta={<><b>{players.length}</b> registered</>}
+        kicker="Directory"
+        title="Players"
+        tag={`${queuedIds.size} in queue · ${onCourtIds.size} on court`}
+      >
+        <input
+          className="search-player-input"
+          placeholder="Search directory"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <button className="btn add-player-btn" onClick={() => setAddModalOpen(true)}>+ Add Player</button>
+      </PageHeader>
+      <div className="player-status-legend" aria-label="Player status legend">
+        <span><i className="available" />Available</span>
+        <span><i className="queue" />In queue</span>
+        <span><i className="court" />On court</span>
       </div>
 
       {players.length === 0 && <div className="empty-state">No players yet. Add your club members above.</div>}

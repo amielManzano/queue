@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { PenLine } from 'lucide-react'
+import PageHeader from './PageHeader.jsx'
 
 function formatDate(timestamp) {
   if (!timestamp) return 'Unknown date'
@@ -39,11 +40,13 @@ export default function MatchHistoryPanel({ games, players, onEditGame }) {
   }
 
   return (
-    <div className="panel match-history-panel">
-      <div className="page-heading">
-        <h2>Match History</h2>
-        <span>{games.length} recorded</span>
-      </div>
+    <div className="panel lb-page match-history-panel">
+      <PageHeader
+        meta={<><b>{games.length}</b> recorded</>}
+        kicker="Session"
+        title="Match History"
+        tag="Latest games first"
+      />
 
       {orderedGames.length === 0 ? (
         <div className="empty-state">No completed matches yet.</div>
@@ -54,15 +57,21 @@ export default function MatchHistoryPanel({ games, players, onEditGame }) {
               <div className="match-history-index">{String(orderedGames.length - index).padStart(2, '0')}</div>
               <div className="match-history-main">
                 <div className="match-history-date"><span>{formatDate(game.timestamp)}</span><span className="match-history-court">{game.courtId || 'Court'}</span></div>
+                {/* Both teams stay on one line; the winner gets a WIN badge and the
+                    losing side is dimmed, so rows line up whichever team won. */}
                 <div className="match-history-teams">
-                  <span className={game.winner === 'A' ? 'match-winner' : ''}>
-                    {game.winner === 'A' && <small>WINNER</small>}
-                    {game.teamA.map(playerName).join(' & ') || 'Team A'}
+                  <span className={`mh-team ${game.winner === 'A' ? 'won' : 'lost'}`}>
+                    <span className="mh-names">{game.teamA.map(playerName).join(' & ') || 'Team A'}</span>
+                    {game.winner === 'A' && <em className="mh-win">Win</em>}
                   </span>
-                  <strong className="match-history-score">{game.teamAPoints ?? 0}<b>-</b>{game.teamBPoints ?? 0}</strong>
-                  <span className={game.winner === 'B' ? 'match-winner' : ''}>
-                    {game.winner === 'B' && <small>WINNER</small>}
-                    {game.teamB.map(playerName).join(' & ') || 'Team B'}
+                  <strong className="match-history-score">
+                    <span className={game.winner === 'A' ? 'won' : ''}>{game.teamAPoints ?? 0}</span>
+                    <b>-</b>
+                    <span className={game.winner === 'B' ? 'won' : ''}>{game.teamBPoints ?? 0}</span>
+                  </strong>
+                  <span className={`mh-team team-b ${game.winner === 'B' ? 'won' : 'lost'}`}>
+                    {game.winner === 'B' && <em className="mh-win">Win</em>}
+                    <span className="mh-names">{game.teamB.map(playerName).join(' & ') || 'Team B'}</span>
                   </span>
                 </div>
                 {/* <div className="match-history-meta">{Number(game.shuttlesUsed || 0).toFixed(2)} shuttle{Number(game.shuttlesUsed || 0) === 1 ? '' : 's'} used</div> */}
