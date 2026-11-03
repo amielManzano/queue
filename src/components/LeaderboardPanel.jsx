@@ -1,11 +1,7 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import domtoimage from "dom-to-image-more";
-import gold1 from "../assets/gold1.png"
-import gold2 from "../assets/gold2.png"
-import silver1 from "../assets/silver1.png"
-import silver2 from "../assets/silver2.png"
-import bronze1 from "../assets/bronze1.png"
-import bronze2 from "../assets/bronze2.png"
+import LeaderboardPoster, { POSTER_SIZE, PODIUM_TONES, PosterMedal, PosterStats } from "./LeaderboardPoster.jsx";
 
 const clashLogo = "/clash-logo.png";
 
@@ -20,20 +16,6 @@ function isIOS() {
 
 function getWinRate(player) {
   return player.gamesPlayed ? player.wins / player.gamesPlayed : 0;
-}
-
-function formatCompactNumber(value) {
-  const number = Number(value) || 0;
-  const absolute = Math.abs(number);
-  const suffixes = [
-    { threshold: 1e9, suffix: "B" },
-    { threshold: 1e6, suffix: "M" },
-    { threshold: 1e3, suffix: "K" },
-  ];
-  const match = suffixes.find(({ threshold }) => absolute >= threshold);
-  if (!match) return String(number);
-  const compact = number / match.threshold;
-  return `${Number(compact.toFixed(1))}${match.suffix}`;
 }
 
 function getRankingKey(player, rankBy) {
@@ -81,28 +63,52 @@ function defaultSeasonLabel() {
   });
 }
 
-const MEDAL_ASSETS = {
-  first: { medal: gold1, leaves: gold2 },
-  second: { medal: silver1, leaves: silver2 },
-  third: { medal: bronze1, leaves: bronze2 },
-};
 
-function RankMedal({ place, tone }) {
-  const assets = MEDAL_ASSETS[tone];
-
-  return (
-    <div className={`rank-medal-wrap ${tone}`}>
-      <span className="rank-medal-glow" aria-hidden="true" />
-      <img src={assets.leaves} alt="" className="rank-medal-leaves" aria-hidden="true" />
-      <img src={assets.medal} alt={`${place} place medal`} className="rank-medal" />
-    </div>
-  );
+// Swap every <img> under `root` for a data URL so the capture never depends on
+// a network fetch mid-render, then wait until each one has decoded.
+async function inlineImages(root) {
+  await Promise.all(Array.from(root.querySelectorAll("img")).map(async (image) => {
+    if (!image.src || image.src.startsWith("data:")) return;
+    try {
+      const response = await fetch(image.src);
+      if (!response.ok) return;
+      const blob = await response.blob();
+      image.src = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      // Keep the original source as a fallback.
+    }
+  }));
+  await Promise.all(Array.from(root.querySelectorAll("img")).map(async (image) => {
+    if (!image.complete) {
+      await new Promise((resolve) => {
+        image.addEventListener("load", resolve, { once: true });
+        image.addEventListener("error", resolve, { once: true });
+      });
+    }
+    if (image.decode) await image.decode().catch(() => {});
+  }));
 }
 
-export default function LeaderboardPanel({ players: sessionPlayers, overallPlayers = [], overallOnly = false, sessionOnly = false, defaultScope = "session", sessionId, seasonLabel, sessionCreatedAt }) {
-  const exportRef = useRef(null);
+const EXPORT_CHOICES = [
+  { key: "top3", label: "Top 3", variant: "podium" },
+  { key: "top10", label: "Top 10", variant: "standings" },
+  { key: "all", label: "All", variant: "all" },
+];
+
+const POSTER_FONTS = ['40px "Anton"', '600 20px "Barlow"', '700 20px "Barlow"', '600 20px "Barlow Condensed"', '700 20px "Barlow Condensed"', '800 20px "Barlow Condensed"'];
+
+export default function LeaderboardPanel({ players: sessionPlayers, overallPlayers = [], overallOnly = false, sessionOnly = false, defaultScope = "session", sessionId, seasonLabel, sessionCreatedAt, clubName }) {
+  const posterRef = useRef(null);
+  const exportMenuRef = useRef(null);
   const [exporting, setExporting] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState(null);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [posterChoice, setPosterChoice] = useState(null);
+  const [previews, setPreviews] = useState([]);
   const [exportError, setExportError] = useState('');
   const [rankBy, setRankBy] = useState("composite");
   const [scope, setScope] = useState(overallOnly ? "overall" : defaultScope);
@@ -166,13 +172,6 @@ export default function LeaderboardPanel({ players: sessionPlayers, overallPlaye
     return groups;
   }, []);
 
-  const podiumSlots = [2, 1, 3].map((rankNumber) => ({
-    key: `rank${rankNumber}`,
-    tone: rankNumber === 1 ? "first" : rankNumber === 2 ? "second" : "third",
-    rankNumber,
-    players: podiumGroups.find((group) => group.rankNumber === rankNumber)?.players || [],
-  }));
-
   const restPlayers = rankedWithPosition.filter((player) => player.rank > 3);
   const rankingFootnote =
     rankBy === "mostWins"
@@ -181,332 +180,201 @@ export default function LeaderboardPanel({ players: sessionPlayers, overallPlaye
         ? "Ranked by win rate (minimum 5 games). Points break ties."
         : "Ranked by volume-adjusted win rate: win rate × √games. Wins and points break ties.";
 
-  const exportImage = async () => {
-    if (!exportRef.current) return;
+  const posterProps = {
+    scopeLabel: scope === "overall" ? "Overall" : "Session",
+    dateLabel: displayedDate,
+    clubName,
+    footnote: rankingFootnote,
+    podiumGroups,
+  };
+  const exportChoice = EXPORT_CHOICES.find((choice) => choice.key === posterChoice);
+
+  useEffect(() => {
+    if (!exportMenuOpen) return undefined;
+    const closeOnOutside = (event) => {
+      if (!exportMenuRef.current?.contains(event.target)) setExportMenuOpen(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setExportMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [exportMenuOpen]);
+
+  // Renders the chosen poster off-screen, captures it at 2x, then shows it in
+  // a preview where it can be downloaded (or saved by tap-and-hold on iOS).
+  const exportImage = async (choiceKey) => {
+    const choice = EXPORT_CHOICES.find((item) => item.key === choiceKey);
+    setExportMenuOpen(false);
     setExporting(true);
     setExportError('');
-    const exportElement = exportRef.current;
-    const desktopWidth = 1100;
-    const exportFrame = document.createElement("iframe");
-    exportFrame.style.position = "fixed";
-    exportFrame.style.left = "-10000px";
-    exportFrame.style.top = "0";
-    exportFrame.style.width = "1200px";
-    exportFrame.style.height = "1000px";
-    exportFrame.style.border = "0";
-    exportFrame.setAttribute("aria-hidden", "true");
-    document.body.appendChild(exportFrame);
-
-    const frameDocument = exportFrame.contentDocument;
-    frameDocument.open();
-    frameDocument.write("<!doctype html><html><head></head><body></body></html>");
-    frameDocument.close();
-    document.querySelectorAll("style, link[rel='stylesheet']").forEach((styleNode) => {
-      frameDocument.head.appendChild(styleNode.cloneNode(true));
-    });
-    await Promise.all(Array.from(frameDocument.querySelectorAll("link[rel='stylesheet']")).map((link) => (
-      link.sheet ? Promise.resolve() : new Promise((resolve) => {
-        link.addEventListener("load", resolve, { once: true });
-        link.addEventListener("error", resolve, { once: true });
-      })
-    )));
-
-    const exportWrapper = frameDocument.createElement("div");
-    const exportBoard = exportElement.cloneNode(true);
-    exportWrapper.className = "app-shell";
-    exportWrapper.dataset.theme = "dark";
-    exportWrapper.style.width = `${desktopWidth + 72}px`;
-    exportWrapper.style.padding = "36px";
-    exportWrapper.style.background = "#020617";
-    exportWrapper.style.boxSizing = "border-box";
-    exportWrapper.style.position = "fixed";
-    exportWrapper.style.left = "-10000px";
-    exportWrapper.style.top = "0";
-    exportWrapper.style.pointerEvents = "none";
-    exportBoard.classList.add("leaderboard-export-desktop");
-    if (isIOS()) exportBoard.classList.add("leaderboard-export-ios");
-    exportBoard.style.width = `${desktopWidth}px`;
-    exportBoard.style.maxWidth = "none";
-    exportBoard.style.border = "2px solid rgba(255,255,255,0.12)";
-    exportBoard.style.overflow = "visible";
-    exportWrapper.appendChild(exportBoard);
-    frameDocument.body.appendChild(exportWrapper);
-    if (frameDocument.fonts?.ready) await frameDocument.fonts.ready;
-    await Promise.all(Array.from(exportWrapper.querySelectorAll("img")).map(async (image) => {
-      if (!image.src || image.src.startsWith("data:")) return;
-      try {
-        const response = await fetch(image.src);
-        if (!response.ok) return;
-        const blob = await response.blob();
-        image.src = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-      } catch (error) {
-        // Keep the original source as a fallback for remote avatars.
-      }
-    }));
-    await Promise.all(Array.from(exportWrapper.querySelectorAll("img")).map(async (image) => {
-      if (!image.complete) {
-        await new Promise((resolve) => {
-          image.addEventListener("load", resolve, { once: true });
-          image.addEventListener("error", resolve, { once: true });
-        });
-      }
-      if (image.decode) await image.decode().catch(() => {});
-    }));
-    if (isIOS()) {
-      if (frameDocument.fonts?.ready) await frameDocument.fonts.ready;
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    }
-
+    setPosterChoice(choiceKey);
     try {
-      const captureOptions = {
-        width: desktopWidth + 72,
-        height: exportWrapper.scrollHeight,
-        bgcolor: "#020617",
-        windowWidth: 1200,
-        windowHeight: 1000,
-      };
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      if (document.fonts?.load) await Promise.all(POSTER_FONTS.map((font) => document.fonts.load(font).catch(() => {})));
+      if (document.fonts?.ready) await document.fonts.ready;
 
+      const node = posterRef.current;
+      if (!node) return;
+      await inlineImages(node);
+      // The full-rankings poster is as tall as its player list needs. Use the
+      // box height: scrollHeight would include the oversized court backdrop.
+      const options = { width: POSTER_SIZE, height: Math.max(POSTER_SIZE, node.offsetHeight), scale: 2, bgcolor: "#020617" };
       // iOS may finish loading cloned images only after the first canvas pass.
-      // Warm up once, then use the second capture for the visible preview.
-      if (isIOS()) await domtoimage.toCanvas(exportWrapper, captureOptions);
-      const canvas = await domtoimage.toCanvas(exportWrapper, captureOptions);
-
-      if (isIOS()) {
-        const dataUrl = canvas.toDataURL("image/png");
-        setPreviewUrl(dataUrl);
-      } else {
-        const link = document.createElement("a");
-        link.download = `${sessionId || "stp-session"}-results.png`;
-        link.href = canvas.toDataURL("image/png");
-        link.click();
-      }
+      if (isIOS()) await domtoimage.toCanvas(node, options);
+      const canvas = await domtoimage.toCanvas(node, options);
+      setPreviews([{
+        name: choice.label,
+        url: canvas.toDataURL("image/png"),
+        fileName: `${sessionId || "clash"}-${scope}-${choice.key}.png`,
+      }]);
     } catch (err) {
       console.error('Leaderboard export failed:', err);
       setExportError('Export failed. Please try again.');
     } finally {
-      exportFrame.remove();
+      setPosterChoice(null);
       setExporting(false);
     }
   };
 
+  const scopeLabel = scope === "overall" ? "Overall" : "Session";
+  const [first, second, third] = [1, 2, 3].map((rank) => podiumGroups.find((group) => group.rankNumber === rank)?.players || []);
+  const rankByLabel = rankBy === "mostWins" ? "Ranked by most wins" : rankBy === "winRateMin5" ? "Ranked by win rate" : "Ranked by composite score";
+  // Tied players share a podium slot: show every name, stats of the first.
+  const groupName = (group) => (group.length ? group.map((player) => player.name).join(", ") : "No player yet");
+  const avatar = (player, className) => (
+    <span className={className}>
+      {player?.photoUrl ? <img src={player.photoUrl} alt="" /> : getInitials(player?.name) || "?"}
+    </span>
+  );
+
   return (
-    <div className="panel league-board" ref={exportRef} style={{ position: "relative" }}>
-      {ranked.length === 0 ? (
-        <div className="leaderboard-grid modern-leaderboard">
-          <div className="league-head">
-            <div className="league-head-left">
-              <span className="league-head-icon">
-                <img src={clashLogo} alt="CLASH" />
-              </span>
-              <div>
-                <div className="league-title">Leaderboard</div>
-              </div>
-            </div>
-            <div className="league-head-meta">
-              <span>As of</span>
-              <strong>{displayedDate}</strong>
-            </div>
-            <div className="league-head-controls">
-              {!overallOnly && !sessionOnly && <label className="league-rank-by">
-                <select value={scope} onChange={(e) => setScope(e.target.value)} aria-label="Leaderboard scope">
-                  <option value="session">Session leaderboard</option>
-                  <option value="overall">Overall leaderboard</option>
-                </select>
-              </label>}
-              <label className="league-rank-by">
-                <select value={rankBy} onChange={(e) => setRankBy(e.target.value)}>
-                  <option value="composite">Composite Score</option>
-                  <option value="winRateMin5">Win rate (min. games)</option>
-                  <option value="mostWins">Most Wins</option>
-                </select>
-              </label>
-              <button className="league-export-btn" disabled>Export</button>
-            </div>
+    <div className="lb-page">
+      <div className="lb-page-head">
+        <div className="lb-poster-brand"><img src={clashLogo} alt="" />Leaderboard</div>
+        <div className="lb-poster-date">As of <b>{displayedDate}</b></div>
+      </div>
+
+      <div className="lb-page-title-row">
+        <div>
+          <div className="lb-poster-title">
+            <span className="lb-poster-kicker">{scopeLabel}</span>
+            <span className="lb-poster-headline">Leaderboard</span>
           </div>
-          <div className="empty-state">
-            No completed games yet. Results appear here once games are marked done.
+          <div className="lb-poster-tag"><i />{rankByLabel}</div>
+        </div>
+        <div className="lb-page-controls">
+          {!overallOnly && !sessionOnly && (
+            <select value={scope} onChange={(e) => setScope(e.target.value)} aria-label="Leaderboard scope">
+              <option value="session">Session leaderboard</option>
+              <option value="overall">Overall leaderboard</option>
+            </select>
+          )}
+          <select value={rankBy} onChange={(e) => setRankBy(e.target.value)} aria-label="Rank by">
+            <option value="composite">Composite Score</option>
+            <option value="winRateMin5">Win rate (min. games)</option>
+            <option value="mostWins">Most Wins</option>
+          </select>
+          <div className="lb-page-export-wrap" ref={exportMenuRef}>
+            <button
+              className="lb-page-export"
+              onClick={() => setExportMenuOpen((open) => !open)}
+              disabled={exporting || ranked.length === 0}
+              aria-haspopup="menu"
+              aria-expanded={exportMenuOpen}
+            >
+              {exporting ? "Exporting..." : "Export"}
+            </button>
+            {exportMenuOpen && (
+              <div className="lb-page-export-menu" role="menu">
+                {EXPORT_CHOICES.map((choice) => (
+                  <button key={choice.key} type="button" role="menuitem" onClick={() => exportImage(choice.key)}>
+                    {choice.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-      ) : (
-        <div className="leaderboard-grid modern-leaderboard">
-          <div className="league-head">
-            <div className="league-head-left">
-              <span className="league-head-icon">
-                <img src={clashLogo} alt="CLASH" />
-              </span>
-              <div>
-                <div className="league-title">Leaderboard</div>
-              </div>
-            </div>
-            <div className="league-head-meta">
-              <span>As of</span>
-              <strong>{displayedDate}</strong>
-            </div>
-            <div className="league-head-controls">
-              {!overallOnly && !sessionOnly && <label className="league-rank-by">
-                <select value={scope} onChange={(e) => setScope(e.target.value)} aria-label="Leaderboard scope">
-                  <option value="session">Session leaderboard</option>
-                  <option value="overall">Overall leaderboard</option>
-                </select>
-              </label>}
-              <label className="league-rank-by">
-                <select
-                  value={rankBy}
-                  onChange={(e) => setRankBy(e.target.value)}
-                >
-                  <option value="composite">Composite Score</option>
-                  <option value="winRateMin5">Win rate (min. games)</option>
-                  <option value="mostWins">Most Wins</option>
-                </select>
-              </label>
+      </div>
+      {exportError && <div className="export-error" role="alert">{exportError}</div>}
 
-              <button
-                className="league-export-btn"
-                onClick={exportImage}
-                disabled={exporting || ranked.length === 0}
-              >
-                {exporting ? "Exporting..." : "Export"}
-              </button>
+      {ranked.length === 0 ? (
+        <div className="lb-page-empty">
+          No completed games yet. Results appear here once games are marked done.
+        </div>
+      ) : (
+        <>
+          <div className="lb-poster-hero lb-page-hero">
+            <PosterMedal rank={1} />
+            <div className="lb-poster-hero-body">
+              <div className="lb-poster-who">
+                {avatar(first[0], "lb-poster-mono")}
+                <div>
+                  <div className="lb-poster-place gold">{PODIUM_TONES[1].label}</div>
+                  <div className="lb-poster-name hero">{groupName(first)}</div>
+                </div>
+              </div>
+              <PosterStats player={first[0]} />
             </div>
-            {exportError && <div className="export-error" role="alert">{exportError}</div>}
           </div>
 
-          <div className="league-podium">
-            {podiumSlots.map((slot) => {
-              const playersInGroup = slot.players;
-              const p = playersInGroup[0] || null;
-
-              return (
-                <article
-                  key={slot.key}
-                  className={`league-podium-card ${slot.tone} ${p ? "" : "empty"}`}
-                >
-                  <span className={`export-rank-shadow ${slot.tone}`} aria-hidden="true" />
-                  <div className="league-podium-top">
-                    <RankMedal place={slot.rankNumber} tone={slot.tone} />
+          <div className="lb-poster-duo lb-page-duo">
+            {[[2, second], [3, third]].map(([rank, group]) => (
+              <div key={rank} className={`lb-poster-card ${PODIUM_TONES[rank].tone}`}>
+                <div className="lb-poster-card-top">
+                  <PosterMedal rank={rank} />
+                  <div>
+                    <div className={`lb-poster-place ${PODIUM_TONES[rank].tone}`}>{PODIUM_TONES[rank].label}</div>
+                    <div className="lb-poster-name">{groupName(group)}</div>
                   </div>
-
-                  <div className="league-podium-body">
-                    <div className={`league-podium-player ${playersInGroup.length > 1 ? "tied" : ""}`}>
-                      <div className="league-avatar-stack">
-                        {playersInGroup.map((groupPlayer, index) => (
-                          <div
-                            key={groupPlayer.id}
-                            className={`league-avatar ${slot.tone}`}
-                            style={{ zIndex: playersInGroup.length - index }}
-                          >
-                            {groupPlayer.photoUrl ? (
-                              <img src={groupPlayer.photoUrl} alt={groupPlayer.name} />
-                            ) : (
-                              getInitials(groupPlayer.name)
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="league-podium-player-info">
-                        <div className="league-player-name">
-                          {p ? playersInGroup.map((groupPlayer) => groupPlayer.name).join(", ") : "No player yet"}
-                        </div>
-                        {p?.skill && (
-                          <div className="league-player-skill">{p.skill}</div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="league-top-stats">
-                      <div>
-                        <span>Win Rate</span>
-                        <strong>{p ? `${p.winRatePct}%` : "--"}</strong>
-                      </div>
-                      <div>
-                        <span>Games</span>
-                        <strong>{formatCompactNumber(p?.gamesPlayed ?? 0)}</strong>
-                      </div>
-                      <div>
-                        <span>W-L</span>
-                        <strong>{p ? `${formatCompactNumber(p.wins)}-${formatCompactNumber(p.losses)}` : "--"}</strong>
-                      </div>
-                      <div>
-                        <span>Points</span>
-                        <strong>{formatCompactNumber(p?.points ?? 0)}</strong>
-                      </div>
-                    </div>
-
-                    <div className="league-podium-bar">
-                      <div
-                        className={`league-podium-bar-fill ${slot.tone}`}
-                        style={{ width: `${p?.winRatePct ?? 0}%` }}
-                      />
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
+                </div>
+                <PosterStats player={group[0]} />
+              </div>
+            ))}
           </div>
 
           {restPlayers.length > 0 && (
-            <div className="league-table-wrap">
-              <div className="league-table-head">
-                <span>Rank</span>
-                <span>Player</span>
-                <span>Win Rate</span>
-                <span>Games</span>
-                <span>W-L</span>
-                <span>Points</span>
+            <div className="lb-poster-table lb-page-table">
+              <div className="lb-poster-th">
+                <span>Rank</span><span>Player</span><span className="c">Games</span><span className="c">W-L</span><span>Win rate</span><span className="r">Points</span>
               </div>
-              <div className="league-table-body">
-                {restPlayers.map((player) => (
-                  <div key={player.id} className="league-table-row">
-                    <div className="league-cell rank">#{player.rank}</div>
-                    <div className="league-cell player">
-                      <span className="league-row-avatar">
-                        {player.photoUrl ? (
-                          <img src={player.photoUrl} alt={player.name} />
-                        ) : (
-                          getInitials(player.name)
-                        )}
-                      </span>
-                      <span className="league-row-name-wrap">
-                        <span className="league-row-name">{player.name}</span>
-                        {player.skill && (
-                          <span className="league-row-skill">{player.skill}</span>
-                        )}
-                      </span>
-                    </div>
-                    <div className="league-cell winrate">
-                      <span className="league-winrate-pct">
-                        {player.winRatePct}%
-                      </span>
-                      <span className="league-winrate-bar">
-                        <span
-                          className="league-winrate-bar-fill"
-                          style={{ width: `${player.winRatePct}%` }}
-                        />
-                      </span>
-                    </div>
-                    <div className="league-cell">{formatCompactNumber(player.gamesPlayed)}</div>
-                    <div className="league-cell wl">
-                      {formatCompactNumber(player.wins)}-{formatCompactNumber(player.losses)}
-                    </div>
-                    <div className="league-cell points">{formatCompactNumber(player.points)}</div>
-                  </div>
-                ))}
-              </div>
+              {restPlayers.map((player) => (
+                <div key={player.id} className="lb-poster-tr">
+                  <span className="lb-poster-rank">{String(player.rank).padStart(2, "0")}</span>
+                  <span className="lb-poster-player">{avatar(player, "lb-poster-avatar")}<span className="lb-page-name">{player.name}</span></span>
+                  <span className="c">{player.gamesPlayed}</span>
+                  <span className="c">{player.wins}-{player.losses}</span>
+                  <span className="lb-poster-wr"><span className="lb-poster-bar"><i style={{ width: `${player.winRatePct}%` }} /></span><b>{player.winRatePct}%</b></span>
+                  <span className="r lb-poster-points">{(player.points || 0).toLocaleString("en-US")}</span>
+                </div>
+              ))}
             </div>
           )}
 
-          <div className="league-footnote">{rankingFootnote}</div>
-        </div>
+          <div className="lb-page-foot">{rankingFootnote}</div>
+        </>
       )}
 
-      {previewUrl && (
+      {exportChoice && createPortal(
+        <div className="lb-poster-stage" aria-hidden="true">
+          <LeaderboardPoster
+            ref={posterRef}
+            variant={exportChoice.variant}
+            topPlayers={exportChoice.key === "all" ? rankedWithPosition : rankedWithPosition.slice(0, 10)}
+            {...posterProps}
+          />
+        </div>,
+        document.body,
+      )}
+
+      {previews.length > 0 && (
         <div
-          onClick={() => setPreviewUrl(null)}
+          onClick={() => setPreviews([])}
           style={{
             position: "fixed",
             inset: 0,
@@ -522,23 +390,23 @@ export default function LeaderboardPanel({ players: sessionPlayers, overallPlaye
           <div
             style={{ color: "#fff", marginBottom: 12, fontSize: 15, textAlign: "center" }}
           >
-            Tap and hold the image, then choose "Save Image" — tap anywhere else to close
+            {isIOS()
+              ? 'Tap and hold the image, then choose "Save Image" — tap anywhere else to close'
+              : "Download the image — click anywhere else to close"}
           </div>
-          <img
-            src={previewUrl}
-            alt="Leaderboard export"
-            style={{
-              display: "block",
-              width: "min(100%, 1100px)",
-              height: "auto",
-              maxHeight: "75vh",
-              objectFit: "contain",
-              background: "#020617",
-              borderRadius: 8,
-            }}
-            onClick={(e) => e.stopPropagation()}
-          />
-          <button className="btn" style={{ marginTop: 16 }} onClick={() => setPreviewUrl(null)}>
+          <div className="lb-poster-previews" onClick={(e) => e.stopPropagation()}>
+            {previews.map((preview) => (
+              <div key={preview.name} className="lb-poster-preview">
+                <img src={preview.url} alt={`Leaderboard ${preview.name} poster`} />
+                {!isIOS() && (
+                  <a className="btn" href={preview.url} download={preview.fileName}>
+                    Download {preview.name}
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+          <button className="btn secondary" style={{ marginTop: 16 }} onClick={() => setPreviews([])}>
             Close
           </button>
         </div>

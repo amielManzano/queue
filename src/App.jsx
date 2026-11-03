@@ -1401,6 +1401,7 @@ export default function App() {
             overallPlayers={overallPlayers}
             defaultScope="session"
             sessionCreatedAt={state.createdAt}
+            clubName={profile?.clubName}
           />
         )}
 

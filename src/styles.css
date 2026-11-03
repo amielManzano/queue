@@ -8237,3 +8237,1042 @@ footer {
 .start-game-actions .btn {
   flex: 1 1 auto;
 }
+
+/* Leaderboard export posters (LeaderboardPoster.jsx). Rendered off-screen at
+   a fixed 1080px square and captured at 2x, so nothing here is responsive.
+   The poster fonts are self-hosted (Latin subset, SIL OFL) because the export
+   can only embed fonts from same-origin stylesheets, not Google Fonts. */
+@font-face { font-family: "Anton"; font-weight: 400; font-display: swap; src: url("/fonts/anton-400.woff2") format("woff2"); }
+@font-face { font-family: "Barlow"; font-weight: 500; font-display: swap; src: url("/fonts/barlow-500.woff2") format("woff2"); }
+@font-face { font-family: "Barlow"; font-weight: 600; font-display: swap; src: url("/fonts/barlow-600.woff2") format("woff2"); }
+@font-face { font-family: "Barlow"; font-weight: 700; font-display: swap; src: url("/fonts/barlow-700.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-weight: 600; font-display: swap; src: url("/fonts/barlow-condensed-600.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-weight: 700; font-display: swap; src: url("/fonts/barlow-condensed-700.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-weight: 800; font-display: swap; src: url("/fonts/barlow-condensed-800.woff2") format("woff2"); }
+
+.lb-poster-stage {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  pointer-events: none;
+}
+
+.lb-poster,
+.lb-page {
+  --lbp-bg: #020617;
+  --lbp-line: #293750;
+  --lbp-text: #f4f7ff;
+  --lbp-muted: #a7b4cc;
+  --lbp-blue: #3b82f6;
+  --lbp-cyan: #22d3ee;
+  --lbp-gold: #f5c542;
+  --lbp-silver: #cbd5e1;
+  --lbp-bronze: #d9925b;
+}
+
+.lb-poster {
+  position: relative;
+  box-sizing: border-box;
+  width: 1080px;
+  height: 1080px;
+  overflow: hidden;
+  padding: 56px 64px;
+  color: var(--lbp-text);
+  font-family: "Barlow", "Inter", sans-serif;
+  text-align: left;
+  background:
+    radial-gradient(900px 520px at 85% -10%, rgba(59,130,246,0.35), transparent 60%),
+    radial-gradient(700px 500px at -10% 110%, rgba(34,211,238,0.18), transparent 60%),
+    var(--lbp-bg);
+}
+
+.lb-poster *,
+.lb-poster *::before,
+.lb-poster *::after {
+  box-sizing: border-box;
+}
+
+.lb-poster > :not(.lb-poster-court):not(.lb-poster-slash):not(.lb-poster-foot) {
+  position: relative;
+  z-index: 1;
+}
+
+.lb-poster-court {
+  position: absolute;
+  top: -10%;
+  left: -10%;
+  width: 120%;
+  height: 120%;
+  object-fit: cover;
+  opacity: 0.07;
+  filter: grayscale(1) brightness(1.6);
+  transform: rotate(-8deg);
+}
+
+.lb-poster-slash {
+  position: absolute;
+  right: -420px;
+  top: 420px;
+  width: 1400px;
+  height: 120px;
+  background: linear-gradient(90deg, transparent, rgba(59,130,246,0.16), transparent);
+  transform: rotate(-24deg);
+}
+
+.lb-poster-slash.thin {
+  top: 600px;
+  height: 40px;
+  background: linear-gradient(90deg, transparent, rgba(34,211,238,0.18), transparent);
+}
+
+.lb-poster-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lb-poster-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--lbp-text);
+  font-family: "Barlow Condensed", sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.lb-poster-brand img {
+  width: 54px;
+  height: 54px;
+  border: 1px solid var(--lbp-line);
+  border-radius: 14px;
+  background: #000;
+}
+
+.lb-poster-date {
+  padding: 9px 18px;
+  border: 1px solid var(--lbp-line);
+  border-radius: 999px;
+  color: var(--lbp-muted);
+  background: rgba(11,18,34,0.7);
+  font-family: "Barlow Condensed", sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.lb-poster-date b {
+  color: var(--lbp-text);
+}
+
+.lb-poster-title {
+  margin-top: 24px;
+  font-family: "Anton", sans-serif;
+  line-height: 0.88;
+  text-transform: uppercase;
+}
+
+.lb-poster-kicker {
+  display: block;
+  margin-bottom: 14px;
+  color: var(--lbp-muted);
+  font-size: 44px;
+  letter-spacing: 0.08em;
+}
+
+.lb-poster-headline {
+  display: inline-block;
+  padding-right: 20px;
+  font-size: 150px;
+  font-style: italic;
+  color: transparent;
+  background: linear-gradient(100deg, #fff 0%, #dbeafe 35%, var(--lbp-blue) 72%, var(--lbp-cyan) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 10px 30px rgba(59,130,246,0.35));
+}
+
+.lb-poster-standings .lb-poster-headline,
+.lb-poster-all .lb-poster-headline {
+  font-size: 112px;
+}
+
+/* The full-rankings poster grows with the player count instead of staying square. */
+.lb-poster.lb-poster-all {
+  height: auto;
+  min-height: 1080px;
+  padding-bottom: 96px;
+}
+
+.lb-poster-tag {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  font-family: "Barlow Condensed", sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.lb-poster-tag i {
+  width: 46px;
+  height: 4px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--lbp-blue), var(--lbp-cyan));
+}
+
+.lb-poster-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--lbp-line);
+}
+
+.lb-poster-stats div {
+  padding-top: 14px;
+}
+
+.lb-poster-stats span {
+  display: block;
+  color: var(--lbp-muted);
+  font-family: "Barlow Condensed", sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.lb-poster-stats strong {
+  font-family: "Barlow Condensed", sans-serif;
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+.lb-poster-bar {
+  display: block;
+  height: 6px;
+  margin-top: 16px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: rgba(148,163,184,0.18);
+}
+
+.lb-poster-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--lbp-blue), var(--lbp-cyan));
+}
+
+.lb-poster-medal {
+  position: relative;
+  flex: none;
+}
+
+.lb-poster-medal img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.lb-poster-medal .lb-poster-medal-face {
+  /* sits a little high inside the laurel, which stays put */
+  transform: translateY(-7%) scale(0.6);
+}
+
+.lb-poster-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 30px;
+  align-items: center;
+  margin-top: 40px;
+  padding: 26px 36px 26px 26px;
+  overflow: hidden;
+  border: 1px solid rgba(59,130,246,0.55);
+  border-radius: 26px;
+  background: linear-gradient(135deg, rgba(59,130,246,0.30), rgba(21,31,53,0.94) 45%, rgba(11,18,34,0.96));
+  box-shadow: 0 30px 80px rgba(2,6,23,0.8);
+}
+
+.lb-poster-hero::after {
+  content: "01";
+  position: absolute;
+  top: -40px;
+  right: 24px;
+  color: rgba(59,130,246,0.1);
+  font-family: "Anton", sans-serif;
+  font-size: 240px;
+  font-style: italic;
+  line-height: 1;
+}
+
+.lb-poster-hero-body {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.lb-poster-who {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+  margin-bottom: 14px;
+}
+
+.lb-poster-who > div:last-child {
+  min-width: 0;
+}
+
+.lb-poster-mono,
+.lb-poster-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(135deg, var(--lbp-blue), var(--lbp-cyan));
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 800;
+}
+
+.lb-poster-mono {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(59,130,246,0.45);
+  font-size: 28px;
+}
+
+.lb-poster-place {
+  font-family: "Barlow Condensed", sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.lb-poster-place.gold { color: var(--lbp-gold); }
+.lb-poster-place.silver { color: var(--lbp-silver); }
+.lb-poster-place.bronze { color: var(--lbp-bronze); }
+
+.lb-poster-name {
+  overflow: hidden;
+  font-family: "Anton", sans-serif;
+  font-size: 50px;
+  font-style: italic;
+  line-height: 1.05;
+  padding-right: 0.12em; /* room for the italic slant so the last letter isn't clipped */
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.lb-poster-name.hero {
+  font-size: 80px;
+}
+
+.lb-poster-duo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 26px;
+  margin-top: 30px;
+}
+
+.lb-poster-card {
+  min-width: 0;
+  padding: 26px 26px 28px;
+  border: 1px solid var(--lbp-line);
+  border-radius: 22px;
+  background: linear-gradient(160deg, rgba(21,31,53,0.95), rgba(11,18,34,0.95));
+}
+
+.lb-poster-card.silver { border-top: 3px solid var(--lbp-silver); }
+.lb-poster-card.bronze { border-top: 3px solid var(--lbp-bronze); }
+
+/* Big faint place number behind the 2nd/3rd cards, like the "01" on the hero. */
+.lb-poster-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.lb-poster-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.lb-poster-card::after {
+  position: absolute;
+  top: -26px;
+  right: 16px;
+  font-family: "Anton", sans-serif;
+  font-size: 160px;
+  font-style: italic;
+  line-height: 1;
+}
+
+.lb-poster-card.silver::after {
+  content: "02";
+  color: rgba(203,213,225,0.07);
+}
+
+.lb-poster-card.bronze::after {
+  content: "03";
+  color: rgba(217,146,91,0.09);
+}
+
+.lb-poster-card-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  margin-bottom: 10px;
+}
+
+.lb-poster-card-top > div:last-child {
+  min-width: 0;
+}
+
+.lb-poster-card .lb-poster-stats span { font-size: 13px; }
+.lb-poster-card .lb-poster-stats strong { font-size: 32px; }
+
+.lb-poster-table {
+  margin-top: 30px;
+  overflow: hidden;
+  border: 1px solid var(--lbp-line);
+  border-radius: 22px;
+  background: rgba(11,18,34,0.85);
+}
+
+.lb-poster-th,
+.lb-poster-tr {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr) 90px 110px 250px 110px;
+  align-items: center;
+  padding: 0 28px;
+}
+
+.lb-poster-th {
+  height: 42px;
+  border-bottom: 1px solid var(--lbp-line);
+  color: var(--lbp-muted);
+  background: rgba(21,31,53,0.9);
+  font-family: "Barlow Condensed", sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.lb-poster-tr {
+  height: 58px;
+  border-bottom: 1px solid rgba(41,55,80,0.6);
+  font-family: "Barlow Condensed", sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.lb-poster-tr:last-child { border-bottom: 0; }
+.lb-poster-tr:nth-child(even) { background: rgba(21,31,53,0.38); }
+.lb-poster-tr.gold { box-shadow: inset 4px 0 0 var(--lbp-gold); }
+.lb-poster-tr.silver { box-shadow: inset 4px 0 0 var(--lbp-silver); }
+.lb-poster-tr.bronze { box-shadow: inset 4px 0 0 var(--lbp-bronze); }
+
+.lb-poster-rank {
+  color: var(--lbp-muted);
+  font-family: "Anton", sans-serif;
+  font-size: 28px;
+  font-style: italic;
+}
+
+.lb-poster-tr.gold .lb-poster-rank { color: var(--lbp-gold); }
+.lb-poster-tr.silver .lb-poster-rank { color: var(--lbp-silver); }
+.lb-poster-tr.bronze .lb-poster-rank { color: var(--lbp-bronze); }
+
+.lb-poster-player {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  overflow: hidden;
+  font-family: "Barlow", sans-serif;
+  font-size: 23px;
+  white-space: nowrap;
+}
+
+.lb-poster-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  font-size: 19px;
+}
+
+.lb-poster-wr {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lb-poster-wr .lb-poster-bar {
+  flex: 1;
+  margin-top: 0;
+}
+
+.lb-poster-wr b {
+  width: 58px;
+  text-align: right;
+}
+
+.lb-poster .c,
+.lb-page .c { text-align: center; }
+.lb-poster .r,
+.lb-page .r { text-align: right; }
+.lb-poster-points { color: #93c5fd; }
+
+.lb-poster-foot {
+  position: absolute;
+  z-index: 1;
+  right: 64px;
+  bottom: 34px;
+  left: 64px;
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  color: var(--lbp-muted);
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+
+.lb-poster-foot b {
+  color: var(--lbp-cyan);
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* The whole exported image is scaled to fit on screen (tall "All" posters
+   included), leaving room for the hint above and the buttons below. */
+.lb-poster-previews {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  min-height: 0;
+}
+
+.lb-poster-preview {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  min-height: 0;
+}
+
+.lb-poster-preview img {
+  display: block;
+  width: auto;
+  max-width: min(100%, 1100px);
+  height: auto;
+  max-height: calc(100dvh - 190px);
+  border-radius: 8px;
+  background: #020617;
+  object-fit: contain;
+}
+
+/* Leaderboard page: the poster design, made fluid. Reuses the .lb-poster-*
+   pieces above and only overrides their fixed poster sizes. */
+/* No frame or backdrop of its own: the page content sits straight on the app background. */
+.lb-page {
+  position: relative;
+  margin-bottom: 15px;
+  color: var(--lbp-text);
+  font-family: "Barlow", "Inter", sans-serif;
+  text-align: left;
+}
+
+.lb-page *,
+.lb-page *::before,
+.lb-page *::after {
+  box-sizing: border-box;
+}
+
+.lb-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.lb-page .lb-poster-brand {
+  gap: 10px;
+  font-size: clamp(11px, 1.31vw, 15px);
+}
+
+.lb-page .lb-poster-brand img {
+  width: clamp(31px, 3.69vw, 41px);
+  height: clamp(31px, 3.69vw, 41px);
+  border-radius: 10px;
+}
+
+.lb-page .lb-poster-date {
+  padding: 7px 11px;
+  font-size: clamp(10px, 1.15vw, 13px);
+}
+
+.lb-page-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 15px;
+}
+
+.lb-page .lb-poster-title {
+  margin-top: clamp(11px, 1.97vw, 20px);
+}
+
+.lb-page .lb-poster-kicker {
+  margin-bottom: 8px;
+  font-size: clamp(16px, 2.46vw, 30px);
+}
+
+.lb-page .lb-poster-headline {
+  padding-right: 0.14em;
+  font-size: clamp(44px, 8.2vw, 98px);
+}
+
+.lb-page .lb-poster-tag {
+  margin-top: 8px;
+  font-size: clamp(11px, 1.31vw, 15px);
+}
+
+.lb-page .lb-poster-tag i {
+  width: 28px;
+}
+
+.lb-page-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.lb-page-controls select {
+  min-height: 33px;
+  padding: 8px 10px;
+  border: 1px solid var(--lbp-line);
+  border-radius: 8px;
+  color: var(--lbp-text);
+  background: rgba(11,18,34,0.85);
+  font: 600 11px "Barlow", sans-serif;
+}
+
+.lb-page-export {
+  min-height: 33px;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--lbp-blue), var(--lbp-cyan));
+  box-shadow: 0 8px 16px rgba(59,130,246,0.35);
+  font: 700 11px "Barlow Condensed", sans-serif;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.lb-page-export-wrap {
+  position: relative;
+  flex: none;
+}
+
+.lb-page-export-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  min-width: 140px;
+  padding: 6px;
+  border: 1px solid var(--lbp-line);
+  border-radius: 12px;
+  background: #0b1222;
+  box-shadow: 0 16px 40px rgba(2,6,23,0.7);
+}
+
+.lb-page-export-menu button {
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--lbp-text);
+  background: transparent;
+  font: 700 14px "Barlow", sans-serif;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-page-export-menu button:hover,
+.lb-page-export-menu button:focus-visible {
+  background: rgba(59,130,246,0.18);
+  outline: none;
+}
+
+.lb-page-export:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.lb-page-empty {
+  margin-top: 23px;
+  padding: 30px 16px;
+  border: 1px dashed var(--lbp-line);
+  border-radius: 13px;
+  color: var(--lbp-muted);
+  text-align: center;
+}
+
+.lb-page .lb-poster-medal {
+  width: clamp(69px, 11.48vw, 148px);
+  height: clamp(69px, 11.48vw, 148px);
+}
+
+.lb-page-hero {
+  position: relative;
+  margin-top: clamp(16px, 2.46vw, 28px);
+  padding: clamp(13px, 2.13vw, 21px) clamp(15px, 2.46vw, 30px) clamp(13px, 2.13vw, 21px) clamp(10px, 1.64vw, 21px);
+  gap: clamp(10px, 2.13vw, 25px);
+}
+
+.lb-page-hero::after {
+  font-size: clamp(98px, 16.4vw, 180px);
+}
+
+.lb-page .lb-poster-card::after {
+  top: -14px;
+  right: 12px;
+  font-size: clamp(84px, 11vw, 130px);
+}
+
+.lb-page .lb-poster-mono {
+  width: clamp(36px, 4.51vw, 49px);
+  height: clamp(36px, 4.51vw, 49px);
+  overflow: hidden;
+  border-radius: 11px;
+  font-size: clamp(16px, 2.13vw, 21px);
+}
+
+.lb-page .lb-poster-mono img,
+.lb-page .lb-poster-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lb-page .lb-poster-place {
+  font-size: clamp(10px, 1.23vw, 13px);
+}
+
+.lb-page .lb-poster-name {
+  font-size: clamp(21px, 2.95vw, 34px);
+}
+
+.lb-page .lb-poster-name.hero {
+  font-size: clamp(30px, 5.25vw, 59px);
+}
+
+.lb-page .lb-poster-stats span {
+  font-size: clamp(9px, 0.98vw, 11px);
+}
+
+.lb-page .lb-poster-stats strong {
+  font-size: clamp(18px, 2.46vw, 30px);
+}
+
+.lb-page .lb-poster-card .lb-poster-stats strong {
+  font-size: clamp(16px, 1.97vw, 23px);
+}
+
+.lb-page .lb-poster-card .lb-poster-medal {
+  width: clamp(52px, 6.56vw, 75px);
+  height: clamp(52px, 6.56vw, 75px);
+}
+
+.lb-page-duo {
+  margin-top: clamp(13px, 1.97vw, 21px);
+  gap: clamp(11px, 1.64vw, 18px);
+}
+
+.lb-page .lb-poster-card {
+  padding: clamp(13px, 1.8vw, 20px);
+}
+
+.lb-page-table {
+  margin-top: clamp(15px, 2.13vw, 23px);
+}
+
+.lb-page .lb-poster-th,
+.lb-page .lb-poster-tr {
+  grid-template-columns: 52px minmax(120px, 170px) 66px 79px minmax(115px, 1fr) 79px; /* player capped, the win-rate bar takes spare width */
+  padding: 0 clamp(11px, 1.64vw, 20px);
+}
+
+.lb-page .lb-poster-th {
+  height: 33px;
+  font-size: 11px;
+}
+
+.lb-page .lb-poster-tr {
+  height: 44px;
+  font-size: 18px;
+}
+
+.lb-page .lb-poster-rank {
+  font-size: 20px;
+}
+
+.lb-page .lb-poster-player {
+  font-size: 15px;
+}
+
+.lb-page .lb-poster-avatar {
+  width: 26px;
+  height: 26px;
+  overflow: hidden;
+  border-radius: 9px;
+  font-size: 13px;
+}
+
+/* The whole table scrolls (so header and rows share the scrollbar's width and
+   stay aligned) while the header sticks to the top. */
+.lb-page .lb-page-table {
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: rgba(59,130,246,0.55) rgba(255,255,255,0.06);
+  scrollbar-width: thin;
+}
+
+.lb-page .lb-page-table::-webkit-scrollbar {
+  width: 6px;
+}
+
+.lb-page .lb-page-table::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.05);
+}
+
+.lb-page .lb-page-table::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(59,130,246,0.55);
+}
+
+.lb-page .lb-page-table .lb-poster-th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #151f35;
+}
+
+.lb-page-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lb-page .lb-poster-wr b {
+  width: 41px;
+}
+
+.lb-page-foot {
+  margin-top: 15px;
+  color: var(--lbp-muted);
+  font-size: 11px;
+}
+
+@media (max-width: 720px) {
+  .lb-page-duo {
+    grid-template-columns: 1fr;
+  }
+
+  /* Selects and Export share one row: selects split the space, Export stays compact. */
+  .lb-page-controls {
+    flex-wrap: nowrap;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .lb-page-controls select {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 6px 8px;
+    font-size: 12px;
+    text-overflow: ellipsis;
+  }
+
+  .lb-page-export {
+    flex: none;
+    padding: 6px 14px;
+    letter-spacing: 0.12em;
+  }
+
+  /* Phones drop the Games column. The win-rate column gets the biggest share
+     so its bar fits beside the percentage; the rest sit close to the name. */
+  .lb-page .lb-poster-th,
+  .lb-page .lb-poster-tr {
+    grid-template-columns: 26px minmax(0, 1.2fr) minmax(0, 0.7fr) minmax(0, 2.4fr) minmax(0, 0.8fr);
+    column-gap: 6px;
+    padding: 0 10px;
+  }
+
+  .lb-page .lb-poster-th > :nth-child(3),
+  .lb-page .lb-poster-tr > :nth-child(3) {
+    display: none;
+  }
+
+  .lb-page .lb-poster-th {
+    font-size: 9px;
+    letter-spacing: 0.12em;
+  }
+
+  .lb-page .lb-poster-tr {
+    height: 41px;
+    font-size: 15px;
+  }
+
+  .lb-page .lb-poster-rank {
+    font-size: 16px;
+  }
+
+  .lb-page .lb-poster-player {
+    gap: 8px;
+    font-size: 12px;
+  }
+
+  .lb-page .lb-poster-avatar {
+    width: 23px;
+    height: 23px;
+    font-size: 11px;
+  }
+
+  .lb-page .lb-poster-wr b {
+    width: auto;
+  }
+
+  .lb-page .lb-poster-wr {
+    gap: 6px;
+  }
+
+  /* The podium cards' bar margin above must not push table bars off-center. */
+  .lb-page .lb-poster-wr .lb-poster-bar {
+    margin-top: 0;
+  }
+}
+
+/* Phones: drop the initials badge in table rows so names keep their room next to the longer win-rate bar. */
+@media (max-width: 720px) {
+  .lb-page .lb-poster-tr .lb-poster-avatar {
+    display: none;
+  }
+}
+
+/* Phones: a compact podium. Each card keeps its four stats on one row and the
+   medal shrinks beside the name, so the top three take far less height. */
+@media (max-width: 720px) {
+  .lb-page-hero {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+    padding: 14px 14px 14px 10px;
+    border-radius: 18px;
+  }
+
+  .lb-page-hero::after,
+  .lb-page .lb-poster-card::after {
+    top: -18px;
+    right: 10px;
+    font-size: 96px;
+  }
+
+  .lb-page-hero .lb-poster-medal {
+    width: 62px;
+    height: 62px;
+  }
+
+  .lb-page-hero .lb-poster-mono {
+    display: none;
+  }
+
+  .lb-page .lb-poster-who {
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+
+  .lb-page .lb-poster-place {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+  }
+
+  .lb-page .lb-poster-name.hero {
+    font-size: 32px;
+  }
+
+  .lb-page .lb-poster-name {
+    font-size: 22px;
+  }
+
+  .lb-page .lb-poster-stats div {
+    padding-top: 6px;
+  }
+
+  .lb-page .lb-poster-stats span,
+  .lb-page .lb-poster-card .lb-poster-stats span {
+    font-size: 9px;
+    letter-spacing: 0.12em;
+  }
+
+  .lb-page .lb-poster-stats strong {
+    font-size: 19px;
+  }
+
+  .lb-page .lb-poster-card .lb-poster-stats strong {
+    font-size: 17px;
+  }
+
+  .lb-page .lb-poster-bar {
+    height: 5px;
+    margin-top: 8px;
+  }
+
+  .lb-page-duo {
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .lb-page .lb-poster-card {
+    padding: 12px 14px;
+    border-radius: 16px;
+  }
+
+  .lb-page .lb-poster-card-top {
+    gap: 10px;
+    margin-bottom: 2px;
+  }
+
+  .lb-page .lb-poster-card .lb-poster-medal {
+    width: 44px;
+    height: 44px;
+  }
+
+  .lb-page-table {
+    margin-top: 14px;
+  }
+}
